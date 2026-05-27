@@ -87,7 +87,6 @@ export default function AddPinModal({
   const [locationFetching, setLocationFetching] = useState(false)
   const [locationOpen, setLocationOpen] = useState(false)
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null)
-  const locationInputRef = useRef<HTMLInputElement>(null)
 
   const debouncedLocationQuery = useDebounce(locationQuery.trim(), DEBOUNCE_MS.geocode)
 
@@ -97,21 +96,20 @@ export default function AddPinModal({
       setLocationOpen(false)
       return
     }
-    let cancelled = false
+    const controller = new AbortController()
     setLocationFetching(true)
     fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=${LIMITS.geocodeResults}&q=${encodeURIComponent(debouncedLocationQuery)}`,
-      { headers: { 'Accept-Language': 'en' } }
+      { headers: { 'Accept-Language': 'en' }, signal: controller.signal }
     )
       .then((r) => r.json())
       .then((data: NominatimResult[]) => {
-        if (cancelled) return
         setLocationResults(data)
         setLocationOpen(data.length > 0)
       })
-      .catch(() => { if (!cancelled) setLocationResults([]) })
-      .finally(() => { if (!cancelled) setLocationFetching(false) })
-    return () => { cancelled = true }
+      .catch((err) => { if (err.name !== 'AbortError') setLocationResults([]) })
+      .finally(() => setLocationFetching(false))
+    return () => controller.abort()
   }, [debouncedLocationQuery])
 
   const handleLocationSelect = (result: NominatimResult) => {
@@ -141,8 +139,7 @@ export default function AddPinModal({
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
     const combined = [...photos, ...files].slice(0, LIMITS.photosPerPin)
-    setPhotos(combined)
-    // Generate previews
+    // Generate previews first, then update both states together to keep them in sync
     Promise.all(
       combined.map(
         (f) =>
@@ -152,7 +149,10 @@ export default function AddPinModal({
             reader.readAsDataURL(f)
           })
       )
-    ).then(setPhotoPreviews)
+    ).then((previews) => {
+      setPhotos(combined)
+      setPhotoPreviews(previews)
+    })
     // Reset the input so the same file can be re-selected if removed
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -206,17 +206,18 @@ export default function AddPinModal({
           .from('pin-photos')
           .upload(path, file, { cacheControl: '31536000', upsert: false })
 
-        if (storageErr) continue // skip failed photos, don't abort
+        if (storageErr) continue // skip failed uploads, don't abort the whole submit
 
         const { data: { publicUrl } } = supabase.storage
           .from('pin-photos')
           .getPublicUrl(path)
 
-        await supabase.from('pin_photos').insert({
+        const { error: dbErr } = await supabase.from('pin_photos').insert({
           pin_id: pinId,
           user_id: userId,
           url: publicUrl,
         })
+        if (dbErr) console.error('Failed to record photo:', dbErr)
       }
     }
 
@@ -279,7 +280,6 @@ export default function AddPinModal({
                   <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-gray-500" />
                 )}
                 <input
-                  ref={locationInputRef}
                   type="text"
                   value={locationQuery}
                   onChange={(e) => {

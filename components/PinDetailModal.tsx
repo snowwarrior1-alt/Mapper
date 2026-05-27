@@ -148,7 +148,7 @@ export default function PinDetailModal({
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [pin.id, fetchComments])
+  }, [pin.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to bottom when new comments arrive
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { Community, Pin } from '@/lib/types'
+import type { FlyToTarget } from './MapInner'
 
 // Must be inside a 'use client' module for ssr:false to work (Next.js 16 docs)
 const MapInner = dynamic(() => import('./MapInner'), {
@@ -21,6 +22,7 @@ interface MapWrapperProps {
   communities: Community[]
   onMapClick: (lat: number, lng: number) => void
   onPinClick: (pin: Pin) => void
+  flyToTarget: FlyToTarget | null
 }
 
 export default function MapWrapper(props: MapWrapperProps) {

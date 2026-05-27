@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Menu } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { Community, Pin } from '@/lib/types'
+import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
+import LocationSearch from '@/components/LocationSearch'
 import AddPinModal from '@/components/AddPinModal'
 import PinDetailModal from '@/components/PinDetailModal'
 import AuthModal from '@/components/AuthModal'
@@ -22,6 +24,8 @@ export default function Home() {
   const [communitySettingsId, setCommunitySettingsId] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null)
+  const flyToCounter = useRef(0)
 
   const [communities, setCommunities] = useState<Community[]>([])
   const [pins, setPins] = useState<Pin[]>([])
@@ -203,6 +207,11 @@ export default function Home() {
     }
   }
 
+  const handleFlyTo = (lat: number, lng: number, zoom: number) => {
+    flyToCounter.current += 1
+    setFlyToTarget({ lat, lng, zoom, id: flyToCounter.current })
+  }
+
   const handleDeletePin = async (pinId: string) => {
     await supabase.from('pins').delete().eq('id', pinId)
     setPins((prev) => prev.filter((p) => p.id !== pinId))
@@ -248,11 +257,15 @@ export default function Home() {
           <Menu className="h-5 w-5" />
         </button>
 
+        {/* Location / geocoding search — top right of map */}
+        <LocationSearch onFlyTo={handleFlyTo} />
+
         <MapWrapper
           pins={filteredPins}
           communities={communities}
           onMapClick={handleMapClick}
           onPinClick={handlePinClick}
+          flyToTarget={flyToTarget}
         />
 
         {showCreateModal && user && (

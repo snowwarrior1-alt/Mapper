@@ -1,19 +1,18 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-// Server-only Supabase client (env vars are available server-side without NEXT_PUBLIC_ too,
-// but we reuse the public vars here since this is metadata-only, not sensitive)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) return { title: 'MapCrowd' }
+
+  const supabase = createClient(supabaseUrl, supabaseKey)
 
   const { data } = await supabase
     .from('communities')

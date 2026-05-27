@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Globe, Loader2, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Globe, Loader2, X, AlertTriangle, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 // ── Picker data ──────────────────────────────────────────────────────────────
@@ -69,7 +69,44 @@ export default function CreateCommunityModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const previewName = name.trim() || 'My Community'
+  // Similarity check state
+  const [similarCommunities, setSimilarCommunities] = useState<{ id: string; name: string; icon: string }[]>([])
+  const [checking, setChecking] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const trimmedName = name.trim()
+  const previewName = trimmedName || 'My Community'
+
+  // Exact match (case-insensitive) blocks submission
+  const exactMatch = similarCommunities.find(
+    (c) => c.name.toLowerCase() === trimmedName.toLowerCase()
+  )
+
+  // Debounced similarity search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (trimmedName.length < 3) {
+      setSimilarCommunities([])
+      setChecking(false)
+      return
+    }
+
+    setChecking(true)
+    debounceRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('communities')
+        .select('id, name, icon')
+        .ilike('name', `%${trimmedName}%`)
+        .limit(5)
+      setSimilarCommunities(data ?? [])
+      setChecking(false)
+    }, 350)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [trimmedName])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -126,16 +163,56 @@ export default function CreateCommunityModal({
             <label className="mb-1.5 block text-sm text-gray-400">
               Community name <span className="text-red-400">*</span>
             </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Skate Parks, Jazz Bars, Dog Walks…"
-              maxLength={50}
-              autoFocus
-              required
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Skate Parks, Jazz Bars, Dog Walks…"
+                maxLength={50}
+                autoFocus
+                required
+                className={`w-full rounded-lg border bg-gray-800 px-3 py-2.5 pr-8 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 ${
+                  exactMatch
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : similarCommunities.length > 0
+                    ? 'border-yellow-500/60 focus:border-yellow-500 focus:ring-yellow-500'
+                    : 'border-gray-700 focus:border-indigo-500 focus:ring-indigo-500'
+                }`}
+              />
+              {checking && (
+                <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-gray-500" />
+              )}
+            </div>
+
+            {/* Exact duplicate — block creation */}
+            {exactMatch && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                <div className="text-sm">
+                  <p className="font-medium text-red-300">This community already exists</p>
+                  <p className="mt-0.5 text-red-400/80">
+                    {exactMatch.icon} {exactMatch.name} — try a more specific name like adding your city.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Similar communities — warn but allow */}
+            {!exactMatch && similarCommunities.length > 0 && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+                <div className="text-sm">
+                  <p className="font-medium text-yellow-300">Similar communities exist</p>
+                  <p className="mt-1 text-yellow-400/80">
+                    {similarCommunities.map((c) => `${c.icon} ${c.name}`).join(', ')}
+                  </p>
+                  <p className="mt-1 text-yellow-400/60">
+                    You can still create yours if it covers a different area or focus.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -234,7 +311,7 @@ export default function CreateCommunityModal({
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || submitting}
+              disabled={!trimmedName || submitting || !!exactMatch || checking}
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? (

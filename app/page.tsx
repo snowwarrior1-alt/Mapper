@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Menu } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { ADMIN_USER_ID } from '@/lib/constants'
 import { Community, Pin, PendingInvite } from '@/lib/types'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
@@ -44,6 +45,9 @@ export default function Home() {
     () => new Set(communities.filter((c) => c.created_by === user?.id).map((c) => c.id)),
     [communities, user]
   )
+
+  // Site-wide admin — can delete any community
+  const isAdmin = !!user && !!ADMIN_USER_ID && user.id === ADMIN_USER_ID
 
   // All communities this user can moderate (owner OR assigned mod)
   const moderatedIds = useMemo(
@@ -281,6 +285,7 @@ export default function Home() {
         onSignIn={() => setShowAuthModal(true)}
         onSignOut={handleSignOut}
         onCreateCommunity={() => setShowCreateModal(true)}
+        isAdmin={isAdmin}
       />
 
       <main className="relative flex-1 overflow-hidden">
@@ -375,11 +380,17 @@ export default function Home() {
             community={settingsCommunity}
             currentUserId={user.id}
             isOwner={settingsCommunity.created_by === user.id}
+            isAdmin={isAdmin}
             onClose={() => setCommunitySettingsId(null)}
             onSettingsUpdate={(updated) => {
               setCommunities((prev) =>
                 prev.map((c) => (c.id === settingsCommunity.id ? { ...c, ...updated } : c))
               )
+            }}
+            onDelete={() => {
+              setCommunities((prev) => prev.filter((c) => c.id !== settingsCommunity.id))
+              if (selectedCommunity === settingsCommunity.id) setSelectedCommunity(null)
+              setCommunitySettingsId(null)
             }}
           />
         )}

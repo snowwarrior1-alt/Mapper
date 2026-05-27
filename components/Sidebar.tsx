@@ -40,6 +40,7 @@ interface SidebarProps {
   onOpenSearch: () => void
   mobileOpen: boolean
   onMobileClose: () => void
+  isAdmin?: boolean
 }
 
 export default function Sidebar({
@@ -65,6 +66,7 @@ export default function Sidebar({
   onOpenSearch,
   mobileOpen,
   onMobileClose,
+  isAdmin = false,
 }: SidebarProps) {
   const countFor = (id: string) => pins.filter((p) => p.community_id === id).length
 
@@ -286,15 +288,15 @@ export default function Sidebar({
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
 
-                {/* Settings — owners see full settings; mods see queue only */}
-                {(owner || mod) && (
+                {/* Settings — owners/mods see settings; admin sees it on every community */}
+                {(owner || mod || isAdmin) && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       onOpenSettings(c.id)
                     }}
-                    title={owner ? 'Community settings' : 'Moderation queue'}
-                    className="rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
+                    title={owner ? 'Community settings' : isAdmin && !mod ? 'Admin settings' : 'Moderation queue'}
+                    className={`rounded p-1 transition-colors hover:text-gray-300 ${isAdmin && !owner && !mod ? 'text-red-500/60 hover:text-red-400' : 'text-gray-500'}`}
                   >
                     <Settings className="h-3.5 w-3.5" />
                   </button>

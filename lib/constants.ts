@@ -36,6 +36,11 @@ export const LIMITS = {
   geocodeResults: 5,
 } as const
 
+// ── Site admin ────────────────────────────────────────────────────────────────
+
+/** The one user who can delete any community regardless of ownership. */
+export const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID ?? ''
+
 // ── Z-index ladder ────────────────────────────────────────────────────────────
 // Leaflet's internal maximum is ~1000.
 // Use these VALUES when you need to reference them in JS (e.g. inline styles).

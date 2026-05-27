@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   X, Shield, UserPlus, UserMinus, Search, Loader2,
-  CheckCircle2, XCircle, Clock, Settings, Users, Inbox, Lock, Mail,
+  CheckCircle2, XCircle, Clock, Settings, Users, Inbox, Lock, Mail, Trash2, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
@@ -30,8 +30,10 @@ interface CommunitySettingsModalProps {
   community: Community
   currentUserId: string
   isOwner: boolean
+  isAdmin?: boolean
   onClose: () => void
   onSettingsUpdate?: (updated: Partial<Community>) => void
+  onDelete?: () => void
 }
 
 type Tab = 'queue' | 'rules' | 'members' | 'mods'
@@ -74,10 +76,23 @@ export default function CommunitySettingsModal({
   community,
   currentUserId,
   isOwner,
+  isAdmin = false,
   onClose,
   onSettingsUpdate,
+  onDelete,
 }: CommunitySettingsModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('queue')
+
+  // ── Delete state ─────────────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    await supabase.from('communities').delete().eq('id', community.id)
+    setDeleting(false)
+    onDelete?.()
+  }
 
   // ── Queue state ──────────────────────────────────────────────────────────
   const [pendingPins, setPendingPins] = useState<PendingPin[]>([])
@@ -391,7 +406,7 @@ export default function CommunitySettingsModal({
             label="Queue"
             badge={pendingPins.length}
           />
-          {isOwner && (
+          {(isOwner || isAdmin) && (
             <>
               <TabBtn
                 active={activeTab === 'rules'}
@@ -608,6 +623,49 @@ export default function CommunitySettingsModal({
                   'Save Rules'
                 )}
               </button>
+
+              {/* Danger Zone */}
+              <section className="border-t border-red-900/40 pt-5">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-red-500">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Danger Zone
+                </h3>
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex w-full items-center gap-2 rounded-lg border border-red-800/60 bg-red-950/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-900/30 hover:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Community
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-red-700/50 bg-red-950/20 p-4 space-y-3">
+                    <p className="text-sm font-semibold text-red-300">Are you sure?</p>
+                    <p className="text-xs text-red-400/80 leading-relaxed">
+                      This will permanently delete <strong className="text-red-300">{community.name}</strong> and all its pins. This cannot be undone.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        disabled={deleting}
+                        className="flex-1 rounded-lg border border-gray-700 py-2 text-xs font-medium text-gray-400 transition-colors hover:text-gray-300 disabled:opacity-40"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-600 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-500 disabled:opacity-60"
+                      >
+                        {deleting
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                        Yes, delete it
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           )}
 

@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Make Leaflet z-index play nicely with our modals */
+.leaflet-pane {
+  z-index: 40 !important;
+}
+.leaflet-control-container {
+  z-index: 50 !important;
+}

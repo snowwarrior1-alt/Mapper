@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   X, Shield, UserPlus, UserMinus, Search, Loader2,
-  CheckCircle2, XCircle, Clock, Settings, Users, Inbox, Lock,
+  CheckCircle2, XCircle, Clock, Settings, Users, Inbox, Lock, Mail,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
@@ -35,6 +35,7 @@ interface CommunitySettingsModalProps {
 }
 
 type Tab = 'queue' | 'rules' | 'members' | 'mods'
+type EmailInviteStatus = 'idle' | 'sending' | 'sent_existing' | 'sent_new' | 'error'
 
 // ── Tab button ────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,12 @@ export default function CommunitySettingsModal({
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
 
+  // Email invite state
+  const [emailInvites, setEmailInvites] = useState<{ id: string; email: string; created_at: string }[]>([])
+  const [emailInviteStatus, setEmailInviteStatus] = useState<EmailInviteStatus>('idle')
+  const [emailInviteMsg, setEmailInviteMsg] = useState('')
+  const [cancellingEmailId, setCancellingEmailId] = useState<string | null>(null)
+
   const fetchMembers = async () => {
     setLoadingMembers(true)
     const { data } = await supabase
@@ -155,9 +162,19 @@ export default function CommunitySettingsModal({
     setLoadingMembers(false)
   }
 
+  const fetchEmailInvites = async () => {
+    const { data } = await supabase
+      .from('community_email_invites')
+      .select('id, email, created_at')
+      .eq('community_id', community.id)
+      .order('created_at', { ascending: true })
+    if (data) setEmailInvites(data)
+  }
+
   useEffect(() => {
     if (activeTab === 'members' && isOwner && community.is_private && loadingMembers) {
       fetchMembers()
+      fetchEmailInvites()
     }
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -210,6 +227,57 @@ export default function CommunitySettingsModal({
 
   const acceptedMembers = members.filter((m) => m.status === 'accepted' && m.user_id !== currentUserId)
   const pendingMembers  = members.filter((m) => m.status === 'pending')
+
+  // Auto-detect email vs username in the invite input
+  const isEmail = memberSearch.trim().includes('@')
+
+  const handleEmailInvite = async () => {
+    const email = memberSearch.trim()
+    setEmailInviteStatus('sending')
+    setEmailInviteMsg('')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setEmailInviteStatus('error')
+      setEmailInviteMsg('Not authenticated')
+      return
+    }
+
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ community_id: community.id, email }),
+    })
+
+    const result = await res.json()
+
+    if (!res.ok) {
+      setEmailInviteStatus('error')
+      setEmailInviteMsg(result.error || 'Failed to send invite')
+    } else if (result.type === 'existing_user') {
+      setEmailInviteStatus('sent_existing')
+      setEmailInviteMsg(`Invite sent to ${result.username ?? email}'s sidebar!`)
+      await fetchMembers()
+      setMemberSearch('')
+    } else {
+      setEmailInviteStatus('sent_new')
+      setEmailInviteMsg(`Invite email sent to ${email}`)
+      await fetchEmailInvites()
+      setMemberSearch('')
+    }
+
+    setTimeout(() => setEmailInviteStatus('idle'), 4000)
+  }
+
+  const handleCancelEmailInvite = async (inviteId: string) => {
+    setCancellingEmailId(inviteId)
+    await supabase.from('community_email_invites').delete().eq('id', inviteId)
+    setEmailInvites((prev) => prev.filter((i) => i.id !== inviteId))
+    setCancellingEmailId(null)
+  }
 
   // ── Mods state ───────────────────────────────────────────────────────────
   const [mods, setMods] = useState<CommunityModerator[]>([])
@@ -595,14 +663,14 @@ export default function CommunitySettingsModal({
                 )}
               </section>
 
-              {/* Pending invites */}
-              {pendingMembers.length > 0 && (
+              {/* Pending invites — username-based + email-based */}
+              {(pendingMembers.length > 0 || emailInvites.length > 0) && (
                 <section>
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     <Clock className="h-3.5 w-3.5" />
                     Pending Invites
                     <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-amber-400">
-                      {pendingMembers.length}
+                      {pendingMembers.length + emailInvites.length}
                     </span>
                   </h3>
                   <ul className="space-y-1">
@@ -629,6 +697,27 @@ export default function CommunitySettingsModal({
                         </button>
                       </li>
                     ))}
+                    {emailInvites.map((inv) => (
+                      <li key={inv.id} className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-800/30 px-3 py-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-800 text-gray-500">
+                          <Mail className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-gray-400">{inv.email}</p>
+                          <p className="text-xs text-gray-600">Email invite sent</p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelEmailInvite(inv.id)}
+                          disabled={cancellingEmailId === inv.id}
+                          className="rounded p-1 text-gray-600 transition-colors hover:text-red-400 disabled:opacity-40"
+                          title="Cancel invite"
+                        >
+                          {cancellingEmailId === inv.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <XCircle className="h-4 w-4" />}
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </section>
               )}
@@ -640,20 +729,55 @@ export default function CommunitySettingsModal({
                   Invite Someone
                 </h3>
                 <div className="relative mb-2">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
+                  {isEmail
+                    ? <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
+                    : <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />}
                   <input
                     type="text"
-                    placeholder="Search by username…"
+                    placeholder="Username or email address…"
                     value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
+                    onChange={(e) => {
+                      setMemberSearch(e.target.value)
+                      if (emailInviteStatus !== 'idle') setEmailInviteStatus('idle')
+                    }}
                     className="w-full rounded-lg border border-gray-700 bg-gray-800 py-2 pl-9 pr-4 text-sm text-white placeholder-gray-600 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
-                  {searchingMembers && (
+                  {(searchingMembers || emailInviteStatus === 'sending') && (
                     <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-500" />
                   )}
                 </div>
 
-                {memberSearchResults.length > 0 && (
+                {/* Email invite button — shown when input looks like an email */}
+                {isEmail && (
+                  <div className="mb-1">
+                    <button
+                      onClick={handleEmailInvite}
+                      disabled={emailInviteStatus === 'sending'}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      {emailInviteStatus === 'sending' ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</>
+                      ) : (
+                        <><Mail className="h-4 w-4" /> Send invite to {memberSearch.trim()}</>
+                      )}
+                    </button>
+                    {emailInviteStatus !== 'idle' && emailInviteStatus !== 'sending' && (
+                      <div className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                        emailInviteStatus === 'error'
+                          ? 'bg-red-500/10 text-red-400'
+                          : 'bg-green-500/10 text-green-400'
+                      }`}>
+                        {emailInviteStatus === 'error'
+                          ? <XCircle className="h-4 w-4 shrink-0" />
+                          : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                        {emailInviteMsg}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Username search results */}
+                {!isEmail && memberSearchResults.length > 0 && (
                   <ul className="space-y-1">
                     {memberSearchResults.map((profile) => (
                       <li key={profile.id} className="flex items-center gap-3 rounded-lg border border-gray-800 px-3 py-2 hover:border-gray-700 hover:bg-gray-800/50">
@@ -674,9 +798,9 @@ export default function CommunitySettingsModal({
                   </ul>
                 )}
 
-                {memberSearch.trim() && !searchingMembers && memberSearchResults.length === 0 && (
+                {!isEmail && memberSearch.trim() && !searchingMembers && memberSearchResults.length === 0 && (
                   <p className="py-2 text-center text-sm text-gray-600">
-                    No users found matching &ldquo;{memberSearch}&rdquo;
+                    No users found — try inviting by email instead
                   </p>
                 )}
               </section>

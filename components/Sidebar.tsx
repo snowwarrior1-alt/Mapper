@@ -3,9 +3,10 @@
 import { Bookmark, BookmarkCheck, Check, LogOut, Lock, MapPin, Plus, Search, Settings, Shield, User2, ArrowUpRight, X } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
-import { Community, Pin } from '@/lib/types'
-import { avatarColor } from '@/lib/utils'
+import { Community, Pin, PendingInvite } from '@/lib/types'
 import Avatar from '@/components/Avatar'
+
+export type { PendingInvite }
 
 function displayName(user: User): string {
   return (
@@ -14,18 +15,6 @@ function displayName(user: User): string {
     user.email?.split('@')[0] ??
     'User'
   )
-}
-
-// ── Pending invite shape (subset of community_members joined with community) ──
-
-export interface PendingInvite {
-  id: string          // community_members.id
-  community_id: string
-  community: {
-    name: string
-    icon: string
-    color: string
-  } | null
 }
 
 interface SidebarProps {

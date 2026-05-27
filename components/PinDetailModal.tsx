@@ -26,6 +26,7 @@ interface PinDetailModalProps {
   onClose: () => void
   onVoteUpdate: (updated: Partial<Pin> & { id: string }) => void
   onDeletePin: (pinId: string) => void
+  onSignIn?: () => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -38,12 +39,14 @@ export default function PinDetailModal({
   onClose,
   onVoteUpdate,
   onDeletePin,
+  onSignIn,
 }: PinDetailModalProps) {
   // ── Voting ────────────────────────────────────────────────────────────────
   const [userVote, setUserVote] = useState<number>(0)
   const [voting, setVoting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const sessionId = getSessionId()
+  // Stable ref — getSessionId() reads/writes localStorage once at mount time
+  const sessionId = useRef(getSessionId()).current
 
   useEffect(() => {
     supabase
@@ -480,12 +483,16 @@ export default function PinDetailModal({
             </div>
           ) : (
             <p className="text-center text-xs text-gray-600">
-              <button
-                onClick={() => {/* parent will handle this via onClose → auth flow */}}
-                className="text-indigo-400 hover:underline"
-              >
-                Sign in
-              </button>
+              {onSignIn ? (
+                <button
+                  onClick={onSignIn}
+                  className="text-indigo-400 hover:underline"
+                >
+                  Sign in
+                </button>
+              ) : (
+                <span className="text-indigo-400">Sign in</span>
+              )}
               {' '}to join the conversation
             </p>
           )}

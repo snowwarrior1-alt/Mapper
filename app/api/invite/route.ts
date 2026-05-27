@@ -23,14 +23,22 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status })
 }
 
+// ── Module-level env validation + singleton admin client ──────────────────────
+// Validated once at module load (server startup) rather than on every request.
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const anonKey     = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+/** Service-role client — bypasses RLS.  Only used server-side. */
+const admin = supabaseUrl && serviceKey
+  ? createClient(supabaseUrl, serviceKey)
+  : null
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey      = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const serviceKey   = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !anonKey || !serviceKey) {
+  if (!supabaseUrl || !anonKey || !serviceKey || !admin) {
     console.error('[invite] Missing Supabase env vars')
     return json({ error: 'Server misconfiguration' }, 500)
   }
@@ -78,9 +86,6 @@ export async function POST(req: NextRequest) {
   if (email === user.email?.toLowerCase()) {
     return json({ error: 'You cannot invite yourself' }, 400)
   }
-
-  // ── Admin client — service role bypasses RLS ────────────────────────────
-  const admin = createClient(supabaseUrl, serviceKey)
 
   // ── Look up whether the email already has an account ───────────────────
   const { data: found } = await admin

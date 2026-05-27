@@ -50,10 +50,10 @@ function PinCard({ pin }: { pin: Pin & { comment_count?: number } }) {
             )}
             <span>{timeAgo(pin.created_at)}</span>
             <span className="font-mono">{pin.lat.toFixed(3)}, {pin.lng.toFixed(3)}</span>
-            {(pin as Pin & { comment_count?: number }).comment_count !== undefined && (
+            {pin.comment_count !== undefined && (
               <span className="flex items-center gap-1">
                 <MessageSquare className="h-3 w-3" />
-                {(pin as Pin & { comment_count?: number }).comment_count}
+                {pin.comment_count}
               </span>
             )}
           </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, MapPin, ThumbsUp, Users, AlertCircle, Loader2 } from 'lucide-react'
@@ -51,25 +51,28 @@ export default function ProfilePage() {
 
   useEffect(() => { load() }, [load])
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
-  const totalVotes = pins.reduce((sum, p) => sum + p.vote_count, 0)
-  const communityCount = new Set(pins.map((p) => p.community_id)).size
+  // ── Derived stats (memoised — only recompute when pins changes) ─────────
+  const { totalVotes, communityCount, topCommunities } = useMemo(() => {
+    const votes = pins.reduce((sum, p) => sum + p.vote_count, 0)
+    const commCount = new Set(pins.map((p) => p.community_id)).size
 
-  // Top communities (by pin count)
-  const commPinCounts = pins.reduce((acc, p) => {
-    acc[p.community_id] = (acc[p.community_id] ?? 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+    const commPinCounts = pins.reduce((acc, p) => {
+      acc[p.community_id] = (acc[p.community_id] ?? 0) + 1
+      return acc
+    }, {} as Record<string, number>)
 
-  const topCommunities = Object.entries(commPinCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 4)
-    .map(([id, count]) => ({
-      id,
-      count,
-      comm: pins.find((p) => p.community_id === id)?.community,
-    }))
-    .filter((t) => t.comm)
+    const top = Object.entries(commPinCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 4)
+      .map(([id, count]) => ({
+        id,
+        count,
+        comm: pins.find((p) => p.community_id === id)?.community,
+      }))
+      .filter((t) => t.comm)
+
+    return { totalVotes: votes, communityCount: commCount, topCommunities: top }
+  }, [pins])
 
   // ── Loading / not-found states ────────────────────────────────────────────
 

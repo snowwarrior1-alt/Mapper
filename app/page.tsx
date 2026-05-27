@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Menu } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { Community, Pin } from '@/lib/types'
+import { Community, Pin, PendingInvite } from '@/lib/types'
 import type { FlyToTarget } from '@/components/MapInner'
-import Sidebar, { PendingInvite } from '@/components/Sidebar'
+import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
 import LocationSearch from '@/components/LocationSearch'
 import AddPinModal from '@/components/AddPinModal'
@@ -220,21 +220,23 @@ export default function Home() {
   }
 
   const handleAcceptInvite = async (memberId: string) => {
+    if (!user) return
     await supabase
       .from('community_members')
       .update({ status: 'accepted' })
       .eq('id', memberId)
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
     setPendingInvites((prev) => prev.filter((i) => i.id !== memberId))
     fetchCommunities() // make the newly-joined private community appear
   }
 
   const handleDeclineInvite = async (memberId: string) => {
+    if (!user) return
     await supabase
       .from('community_members')
       .delete()
       .eq('id', memberId)
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
     setPendingInvites((prev) => prev.filter((i) => i.id !== memberId))
   }
 
@@ -355,6 +357,7 @@ export default function Home() {
               setSelectedPin((prev) => (prev ? { ...prev, ...updated } : null))
             }}
             onDeletePin={handleDeletePin}
+            onSignIn={() => setShowAuthModal(true)}
           />
         )}
 

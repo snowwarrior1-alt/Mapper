@@ -84,6 +84,17 @@ export interface CommunityModerator {
   profile: Pick<Profile, 'username' | 'avatar_url'> | null
 }
 
+/** Subset of community_members joined with community — used in the Sidebar invite banner */
+export interface PendingInvite {
+  id: string          // community_members.id
+  community_id: string
+  community: {
+    name: string
+    icon: string
+    color: string
+  } | null
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export const PIN_DURATION_LABELS: Record<PinDuration, string> = {

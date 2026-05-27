@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { X, MapPin, Loader2, Lock, Clock, CheckCircle2, ImagePlus, XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Community, WHO_CAN_PIN_LABELS } from '@/lib/types'
+import { LIMITS } from '@/lib/constants'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export default function AddPinModal({
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
-    const combined = [...photos, ...files].slice(0, 5) // max 5 photos
+    const combined = [...photos, ...files].slice(0, LIMITS.photosPerPin)
     setPhotos(combined)
     // Generate previews
     Promise.all(
@@ -312,7 +313,7 @@ export default function AddPinModal({
                 </div>
               )}
 
-              {photos.length < 5 && (
+              {photos.length < LIMITS.photosPerPin && (
                 <>
                   <input
                     ref={fileInputRef}

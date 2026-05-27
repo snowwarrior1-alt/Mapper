@@ -32,6 +32,8 @@ export const LIMITS = {
   userSearchResults: 10,
   /** Max similar communities shown in the duplicate warning */
   similarCommunities: 5,
+  /** Max geocoding results from Nominatim */
+  geocodeResults: 5,
 } as const
 
 // ── Z-index ladder ────────────────────────────────────────────────────────────

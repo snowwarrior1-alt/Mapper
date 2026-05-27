@@ -65,7 +65,7 @@ export default function LocationSearch({ onFlyTo }: LocationSearchProps) {
 
     fetch(
       `https://nominatim.openstreetmap.org/search` +
-      `?q=${encodeURIComponent(debouncedQuery)}&format=json&limit=${LIMITS.userSearchResults}&addressdetails=1`
+      `?q=${encodeURIComponent(debouncedQuery)}&format=json&limit=${LIMITS.geocodeResults}&addressdetails=1`
     )
       .then((r) => r.json())
       .then((data: NominatimResult[]) => {

@@ -242,7 +242,7 @@ export default function Home() {
         {/* Hamburger — mobile only */}
         <button
           onClick={() => setShowMobileSidebar(true)}
-          className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 shadow-lg border border-gray-700 text-gray-300 hover:text-white transition-colors md:hidden"
+          className="fixed left-4 top-4 z-[1001] flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 shadow-lg border border-gray-700 text-gray-300 hover:text-white transition-colors md:hidden"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />

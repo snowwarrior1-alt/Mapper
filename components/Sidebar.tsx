@@ -70,7 +70,7 @@ export default function Sidebar({
       {/* Mobile backdrop — tap to close */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          className="fixed inset-0 z-[1001] bg-black/60 md:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -78,7 +78,7 @@ export default function Sidebar({
       <aside
         className={`
           flex flex-col border-r border-gray-800 bg-gray-900
-          fixed inset-y-0 left-0 z-50 w-72 transition-transform duration-300
+          fixed inset-y-0 left-0 z-[1002] w-72 transition-transform duration-300
           md:relative md:translate-x-0
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}

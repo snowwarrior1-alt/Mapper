@@ -61,6 +61,7 @@ export default function PinDetailModal({
   useEffect(() => { setConfirmDelete(false) }, [pin.id])
 
   const handleVote = async (value: number) => {
+    if (!user) { onSignIn?.(); return }
     if (voting) return
     setVoting(true)
     const { data, error } = await supabase.rpc('vote_on_pin', {
@@ -409,33 +410,50 @@ export default function PinDetailModal({
             <div className="flex items-center gap-3 border-t border-gray-800 pt-4">
               <span className="text-sm text-gray-400">Helpful?</span>
               <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={() => handleVote(1)}
-                  disabled={voting}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
-                    userVote === 1
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-green-400'
-                  } disabled:opacity-60`}
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                  {userVote === 1 ? 'Liked' : 'Upvote'}
-                </button>
-                <span className={`min-w-[2rem] text-center text-lg font-bold tabular-nums ${voteColor}`}>
-                  {pin.vote_count > 0 ? `+${pin.vote_count}` : pin.vote_count}
-                </span>
-                <button
-                  onClick={() => handleVote(-1)}
-                  disabled={voting}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
-                    userVote === -1
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-red-400'
-                  } disabled:opacity-60`}
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                  {userVote === -1 ? 'Downvoted' : 'Downvote'}
-                </button>
+                {user ? (
+                  <>
+                    <button
+                      onClick={() => handleVote(1)}
+                      disabled={voting}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                        userVote === 1
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-green-400'
+                      } disabled:opacity-60`}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                      {userVote === 1 ? 'Liked' : 'Upvote'}
+                    </button>
+                    <span className={`min-w-[2rem] text-center text-lg font-bold tabular-nums ${voteColor}`}>
+                      {pin.vote_count > 0 ? `+${pin.vote_count}` : pin.vote_count}
+                    </span>
+                    <button
+                      onClick={() => handleVote(-1)}
+                      disabled={voting}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                        userVote === -1
+                          ? 'bg-red-600 text-white'
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-red-400'
+                      } disabled:opacity-60`}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                      {userVote === -1 ? 'Downvoted' : 'Downvote'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className={`min-w-[2rem] text-center text-lg font-bold tabular-nums ${voteColor}`}>
+                      {pin.vote_count > 0 ? `+${pin.vote_count}` : pin.vote_count}
+                    </span>
+                    <button
+                      onClick={() => onSignIn?.()}
+                      className="flex items-center gap-1.5 rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-400 transition-colors hover:bg-indigo-600/20 hover:text-indigo-300"
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                      Sign in to vote
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

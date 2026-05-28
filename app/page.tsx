@@ -526,6 +526,9 @@ export default function Home() {
             }}
             onDeletePin={handleDeletePin}
             onSignIn={() => setShowAuthModal(true)}
+            onGoToPin={() => {
+              handleFlyTo(selectedPin.lat, selectedPin.lng, 17)
+            }}
           />
         )}
 

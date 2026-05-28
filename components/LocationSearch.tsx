@@ -134,12 +134,10 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
     // segment is just the house number, so extractPrimaryName combines it
     // with the street name (e.g. "139 Chrystie Street" not "139").
     const name = extractPrimaryName(r.display_name)
-    // Flag so the debounce effect ignores the fetch that would fire when
-    // we call setQuery() with the shortened display name below.
     justSelected.current = true
+    setResults([])   // clear so onFocus can't reopen the dropdown
     setQuery(name)
     setOpen(false)
-    inputRef.current?.blur()
     // Offer to pin this location (if parent supports it)
     if (onAddPin) setPinCandidate({ lat, lng, name })
   }, [onFlyTo, onAddPin])

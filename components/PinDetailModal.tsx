@@ -27,6 +27,8 @@ interface PinDetailModalProps {
   onVoteUpdate: (updated: Partial<Pin> & { id: string }) => void
   onDeletePin: (pinId: string) => void
   onSignIn?: () => void
+  /** Fly the map to this pin and close the modal */
+  onGoToPin?: () => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ export default function PinDetailModal({
   onVoteUpdate,
   onDeletePin,
   onSignIn,
+  onGoToPin,
 }: PinDetailModalProps) {
   // ── Voting ────────────────────────────────────────────────────────────────
   const [userVote, setUserVote] = useState<number>(0)
@@ -274,6 +277,16 @@ export default function PinDetailModal({
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 {confirmDelete ? 'Confirm?' : 'Remove'}
+              </button>
+            )}
+            {onGoToPin && (
+              <button
+                onClick={() => { onGoToPin(); onClose() }}
+                title="Go to pin on map"
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-indigo-400"
+              >
+                <Navigation className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Go to pin</span>
               </button>
             )}
             <button

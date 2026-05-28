@@ -27,6 +27,8 @@ export default function Home() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null)
   const flyToCounter = useRef(0)
+  // Tracks whether user has manually chosen a filter; prevents auto-default from overriding choices
+  const userChoseFilter = useRef(false)
 
   const [communities, setCommunities] = useState<Community[]>([])
   const [pins, setPins] = useState<Pin[]>([])
@@ -124,6 +126,21 @@ export default function Home() {
   useEffect(() => { fetchModRoles() }, [fetchModRoles])
   useEffect(() => { fetchPendingInvites() }, [fetchPendingInvites])
 
+  // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
+  useEffect(() => {
+    userChoseFilter.current = false
+    if (!user) { setShowSubscribedOnly(false); setSelectedCommunity(null) }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-default logged-in users with subscriptions to the subscribed-only view
+  useEffect(() => {
+    if (userChoseFilter.current) return
+    if (user && subscribedIds.size > 0) {
+      setShowSubscribedOnly(true)
+      setSelectedCommunity(null)
+    }
+  }, [user, subscribedIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Data ──────────────────────────────────────────────────────────────────
   const fetchCommunities = useCallback(async () => {
     const { data } = await supabase.from('communities').select('*').order('name')
@@ -166,11 +183,13 @@ export default function Home() {
   // ── Interaction handlers ──────────────────────────────────────────────────
 
   const handleSelectCommunity = (id: string | null) => {
+    userChoseFilter.current = true
     setSelectedCommunity(id)
     setShowSubscribedOnly(false)
   }
 
   const handleShowSubscribed = () => {
+    userChoseFilter.current = true
     setSelectedCommunity(null)
     setShowSubscribedOnly(true)
   }

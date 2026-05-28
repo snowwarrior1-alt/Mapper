@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  X, ThumbsUp, ThumbsDown, Clock, MapPin, Trash2,
+  X, ThumbsUp, ThumbsDown, Clock, MapPin, Navigation, ExternalLink, Trash2,
   Timer, MessageSquare, Send, ChevronLeft, ChevronRight,
   ImageOff,
 } from 'lucide-react'
@@ -74,6 +74,39 @@ export default function PinDetailModal({
       onVoteUpdate({ id: pin.id, vote_count: (data as { vote_count: number }).vote_count })
     }
   }
+
+  // ── Address lookup ────────────────────────────────────────────────────────
+  const [address, setAddress] = useState<string | null>(null)
+  const [loadingAddress, setLoadingAddress] = useState(true)
+
+  useEffect(() => {
+    setAddress(null)
+    setLoadingAddress(true)
+    const ctrl = new AbortController()
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${pin.lat}&lon=${pin.lng}&format=json`,
+      { signal: ctrl.signal, headers: { 'Accept-Language': 'en' } }
+    )
+      .then((r) => r.json())
+      .then((data: { address?: Record<string, string>; display_name?: string }) => {
+        if (!data?.address) { setAddress(null); return }
+        const a = data.address
+        const street = [a.house_number, a.road ?? a.pedestrian ?? a.footway ?? a.path]
+          .filter(Boolean).join(' ')
+        const neighbourhood = a.suburb ?? a.quarter ?? a.neighbourhood ?? a.city_district
+        const city = a.city ?? a.town ?? a.village ?? a.municipality
+        const region = a.state ?? a.county
+        const parts = [street, neighbourhood, city, region].filter(Boolean)
+        setAddress(
+          parts.slice(0, 3).join(', ') ||
+          data.display_name?.split(', ').slice(0, 3).join(', ') ||
+          null
+        )
+      })
+      .catch(() => setAddress(null))
+      .finally(() => setLoadingAddress(false))
+    return () => ctrl.abort()
+  }, [pin.id, pin.lat, pin.lng])
 
   // ── Photos ────────────────────────────────────────────────────────────────
   const [photos, setPhotos] = useState<PinPhoto[]>([])
@@ -323,8 +356,42 @@ export default function PinDetailModal({
                   </span>
                 </>
               )}
-              <span className="w-full font-mono text-gray-700">
-                {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+              {/* Address / coordinates row */}
+              <span className="w-full flex items-center gap-1 min-w-0">
+                {loadingAddress ? (
+                  <span className="h-3 rounded bg-gray-800 animate-pulse" style={{ width: '55%' }} />
+                ) : address ? (
+                  <>
+                    <Navigation className="h-3 w-3 shrink-0 text-gray-600" />
+                    <span className="flex-1 truncate text-gray-500">{address}</span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 ml-1 flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Maps</span>
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 font-mono text-gray-700">
+                      {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 ml-1 flex items-center gap-0.5 text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Maps</span>
+                    </a>
+                  </>
+                )}
               </span>
               {pin.expires_at && (
                 <span className="flex items-center gap-1 text-amber-500">

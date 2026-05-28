@@ -67,6 +67,10 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
   // Set to true immediately after a result is selected so the debounce effect
   // can skip the fetch that would otherwise fire with the shortened query name.
   const justSelected  = useRef(false)
+  // Always reflects the latest value of `query` so async fetch callbacks can
+  // detect they are stale (user has typed more since the fetch was queued).
+  const queryRef      = useRef(query)
+  queryRef.current    = query
 
   // Debounce the trimmed query — replaces the manual useRef + setTimeout pattern
   const debouncedQuery = useDebounce(query.trim(), DEBOUNCE_MS.geocode)
@@ -103,6 +107,9 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
       .then((data: NominatimResult[]) => {
         if (cancelled) return
         if (justSelected.current) return   // user selected a result; don't reopen with stale data
+        // Guard against intermediate debounce fires: if the user has typed more
+        // characters since this fetch was queued, the results are stale — discard them.
+        if (queryRef.current.trim() !== debouncedQuery) return
         setResults(data)
         setOpen(true)
         setActiveIdx(-1)

@@ -135,7 +135,7 @@ export default function Home() {
   useEffect(() => {
     const channel = supabase
       .channel('communities-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communities' }, () =>
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'communities' }, () =>
         fetchCommunities()
       )
       .subscribe()

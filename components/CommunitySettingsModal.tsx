@@ -134,10 +134,12 @@ export default function CommunitySettingsModal({
   const [isPrivate, setIsPrivate] = useState(community.is_private)
   const [savingRules, setSavingRules] = useState(false)
   const [rulesSaved, setRulesSaved] = useState(false)
+  const [saveRulesError, setSaveRulesError] = useState<string | null>(null)
 
   const handleSaveRules = async () => {
     setSavingRules(true)
     setRulesSaved(false)
+    setSaveRulesError(null)
     const updates = {
       require_approval: requireApproval,
       default_pin_duration: pinDuration,
@@ -146,7 +148,10 @@ export default function CommunitySettingsModal({
     }
     const { error } = await supabase.from('communities').update(updates).eq('id', community.id)
     setSavingRules(false)
-    if (!error) {
+    if (error) {
+      console.error('Failed to save community rules:', error)
+      setSaveRulesError(error.message || 'Failed to save — please try again.')
+    } else {
       setRulesSaved(true)
       onSettingsUpdate?.(updates)
       setTimeout(() => setRulesSaved(false), 2000)
@@ -681,6 +686,14 @@ export default function CommunitySettingsModal({
                   'Save Rules'
                 )}
               </button>
+
+              {/* Save error */}
+              {saveRulesError && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-400">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {saveRulesError}
+                </div>
+              )}
 
               {/* Danger Zone */}
               <section className="border-t border-red-900/40 pt-5">

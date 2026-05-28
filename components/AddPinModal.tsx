@@ -250,10 +250,14 @@ export default function AddPinModal({
 
   return (
     <div
-      className="absolute inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+      className="absolute inset-0 z-[1000] flex items-end bg-black/50 sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: '90vh' }}>
+      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-md sm:rounded-2xl" style={{ maxHeight: '90vh' }}>
+        {/* Drag handle — visible on mobile only */}
+        <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-gray-700" />
+        </div>
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-800 px-5 py-4">
           <div className="flex items-center gap-2">
@@ -371,7 +375,6 @@ export default function AddPinModal({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={selectedCommunity ? `e.g. "Rare ${selectedCommunity.name} sighting"` : 'What is here?'}
                 maxLength={100}
-                autoFocus
                 required
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
@@ -468,14 +471,14 @@ export default function AddPinModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-700 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-300"
+              className="flex-1 rounded-xl border border-gray-700 py-3 text-sm font-medium text-gray-400 transition-colors hover:border-gray-600 hover:text-gray-300"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!title.trim() || !communityId || submitting || !userCanPin}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? (
                 <>

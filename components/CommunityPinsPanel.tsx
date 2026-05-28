@@ -33,7 +33,12 @@ export default function CommunityPinsPanel({
   )
 
   return (
-    <div className="absolute right-0 top-0 z-[999] flex h-full w-full flex-col border-l border-gray-800 bg-gray-900/95 shadow-2xl backdrop-blur-sm sm:w-80">
+    <div className="absolute bottom-0 left-0 right-0 z-[999] flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl border border-gray-800 bg-gray-900/95 shadow-2xl backdrop-blur-sm sm:bottom-auto sm:left-auto sm:top-0 sm:h-full sm:max-h-none sm:w-80 sm:rounded-none sm:border-b-0 sm:border-l sm:border-r-0 sm:border-t-0">
+
+      {/* Drag handle — mobile only */}
+      <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+        <div className="h-1 w-10 rounded-full bg-gray-700" />
+      </div>
 
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div

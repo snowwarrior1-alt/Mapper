@@ -235,15 +235,19 @@ export default function PinDetailModal({
   const currentPhoto = photos[photoIndex]
 
   return (
-    /* Full-screen backdrop */
+    /* Full-screen backdrop — bottom sheet on mobile, centred modal on sm+ */
     <div
-      className="absolute inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="absolute inset-0 z-[1000] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl"
+        className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-lg sm:rounded-2xl"
         style={{ maxHeight: '90vh' }}
       >
+        {/* Drag handle — mobile only */}
+        <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-gray-700" />
+        </div>
         {/* ── Community banner (sticky) ────────────────────────────────── */}
         <div
           className="flex shrink-0 items-center justify-between px-5 py-3"

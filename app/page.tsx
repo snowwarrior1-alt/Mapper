@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu, Plus } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
@@ -294,6 +294,13 @@ export default function Home() {
     setSelectedPin(null)
   }
 
+  // Mobile FAB — opens AddPinModal at the current map centre
+  const handleFabAddPin = () => {
+    setPendingCommunityOverride(selectedCommunity)
+    setPendingLatLng([mapCenter[0], mapCenter[1]])
+    if (!user) setShowAuthModal(true)
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   const settingsCommunity = communitySettingsId
     ? communities.find((c) => c.id === communitySettingsId) ?? null
@@ -341,6 +348,19 @@ export default function Home() {
         >
           <Menu className="h-5 w-5" />
         </button>
+
+        {/* Mobile FAB — drop a pin at the current map centre.
+            Hidden on md+ (desktop uses tap-the-map), hidden when any sheet
+            is already open so it doesn't fight for z-index attention. */}
+        {!pendingLatLng && !selectedPin && !selectedCommunityObj && !showAuthModal && (
+          <button
+            onClick={handleFabAddPin}
+            aria-label="Drop a pin"
+            className="fixed bottom-28 right-4 z-[1001] flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl transition-transform active:scale-95 hover:bg-indigo-500 md:hidden"
+          >
+            <Plus className="h-7 w-7" />
+          </button>
+        )}
 
         {/* Location / geocoding search — top right of map */}
         <LocationSearch onFlyTo={handleFlyTo} panelOpen={!!selectedCommunityObj} />

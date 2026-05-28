@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, X, Loader2, MapPin, Plus } from 'lucide-react'
 import { useDebounce } from '@/lib/hooks'
 import { DEBOUNCE_MS, LIMITS } from '@/lib/constants'
@@ -21,6 +21,22 @@ interface LocationSearchProps {
   panelOpen?: boolean
   /** Called when the user clicks "Add pin" on a searched location */
   onAddPin?: (lat: number, lng: number, placeName: string) => void
+}
+
+/**
+ * Extract a human-readable short name from a Nominatim display_name.
+ * Nominatim splits address components with ", " — the first segment is the
+ * most specific part, but for street addresses it's just the house number
+ * (e.g. "139, Chrystie Street, Manhattan…" → first part = "139").
+ * In that case we combine the house number with the street name.
+ */
+function extractPrimaryName(displayName: string): string {
+  const parts = displayName.split(', ')
+  if (parts.length > 1 && /^\d+[A-Za-z]?$/.test(parts[0].trim())) {
+    // First segment is a house/unit number — prepend the street name
+    return `${parts[0].trim()} ${parts[1].trim()}`
+  }
+  return parts[0].trim()
 }
 
 /** Derive a sensible zoom from the result's bounding box size. */
@@ -46,8 +62,11 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
   const [activeIdx, setActiveIdx] = useState(-1)
   const [pinCandidate, setPinCandidate] = useState<{ lat: number; lng: number; name: string } | null>(null)
 
-  const inputRef     = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef      = useRef<HTMLInputElement>(null)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  // Set to true immediately after a result is selected so the debounce effect
+  // can skip the fetch that would otherwise fire with the shortened query name.
+  const justSelected  = useRef(false)
 
   // Debounce the trimmed query — replaces the manual useRef + setTimeout pattern
   const debouncedQuery = useDebounce(query.trim(), DEBOUNCE_MS.geocode)
@@ -58,6 +77,14 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
 
   // ── Geocoding fetch ──────────────────────────────────────────────────────
   useEffect(() => {
+    // Skip the fetch that fires right after the user selects a result —
+    // we've already got the data we need and the query was just shortened
+    // for display purposes, so re-searching it would reopen the dropdown.
+    if (justSelected.current) {
+      justSelected.current = false
+      return
+    }
+
     if (debouncedQuery.length < 2) {
       setResults([])
       setOpen(false)
@@ -97,19 +124,24 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
   }, [])
 
   // ── Fly to a result ──────────────────────────────────────────────────────
-  const selectResult = (r: NominatimResult) => {
+  const selectResult = useCallback((r: NominatimResult) => {
     const lat  = parseFloat(r.lat)
     const lng  = parseFloat(r.lon)
     const zoom = bboxZoom(r.boundingbox)
     onFlyTo(lat, lng, zoom)
-    // Show only the primary place name in the input after selection
-    const name = r.display_name.split(',')[0].trim()
+    // Build a readable short name; for street addresses the first comma-
+    // segment is just the house number, so extractPrimaryName combines it
+    // with the street name (e.g. "139 Chrystie Street" not "139").
+    const name = extractPrimaryName(r.display_name)
+    // Flag so the debounce effect ignores the fetch that would fire when
+    // we call setQuery() with the shortened display name below.
+    justSelected.current = true
     setQuery(name)
     setOpen(false)
     inputRef.current?.blur()
     // Offer to pin this location (if parent supports it)
     if (onAddPin) setPinCandidate({ lat, lng, name })
-  }
+  }, [onFlyTo, onAddPin])
 
   // ── Keyboard navigation ──────────────────────────────────────────────────
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -181,9 +213,9 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
       {open && results.length > 0 && (
         <ul className="mt-1.5 overflow-hidden rounded-xl border border-gray-700 bg-gray-900/95 shadow-2xl backdrop-blur-sm">
           {results.map((r, i) => {
-            const parts     = r.display_name.split(', ')
-            const primary   = parts[0]
-            const secondary = parts.slice(1).join(', ')
+            const primary   = extractPrimaryName(r.display_name)
+            // Secondary: everything after the primary name in display_name
+            const secondary = r.display_name.slice(primary.length).replace(/^,\s*/, '')
             return (
               <li key={r.place_id}>
                 <button

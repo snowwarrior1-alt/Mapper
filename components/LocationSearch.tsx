@@ -138,20 +138,16 @@ export default function LocationSearch({ onFlyTo, panelOpen = false, onAddPin }:
     const zoom = bboxZoom(r.boundingbox)
     onFlyTo(lat, lng, zoom)
 
-    const rawParts  = r.display_name.split(', ')
-    const isAddress = rawParts.length > 1 && /^\d+[A-Za-z]?$/.test(rawParts[0].trim())
-    // Short human-readable name used for the "Add pin" pill and named places
+    // Build the clean short name for both addresses ("139 Chrystie Street")
+    // and named places ("Central Park").
     const name = extractPrimaryName(r.display_name)
 
-    if (isAddress) {
-      // Leave the input exactly as the user typed it — debouncedQuery won't
-      // change, so no re-fetch fires and the dropdown stays closed.
-    } else {
-      // Named place: shorten to primary name and guard the ensuing debounce
-      // so it doesn't immediately re-search with the shortened string.
-      justSelected.current = true
-      setQuery(name)
-    }
+    // Always update the input to the clean selected name and suppress the
+    // debounce that will fire after the query state change — without this flag
+    // the effect would kick off a fresh search for the new query string,
+    // reopening the dropdown.
+    justSelected.current = true
+    setQuery(name)
 
     setResults([])   // clear so onFocus can't reopen the dropdown
     setOpen(false)

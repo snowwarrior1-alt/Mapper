@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { X, ThumbsUp, ThumbsDown, Clock, ArrowUpRight, Lock } from 'lucide-react'
+import { X, ThumbsUp, ThumbsDown, Clock, ArrowUpRight, Lock, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Community, Pin } from '@/lib/types'
 import { timeAgo } from '@/lib/utils'
@@ -11,6 +11,7 @@ interface CommunityPinsPanelProps {
   pins: Pin[]
   onClose: () => void
   onPinClick: (pin: Pin) => void
+  onAddPin: (communityId: string) => void
 }
 
 export default function CommunityPinsPanel({
@@ -18,6 +19,7 @@ export default function CommunityPinsPanel({
   pins,
   onClose,
   onPinClick,
+  onAddPin,
 }: CommunityPinsPanelProps) {
   // Sort by vote count desc, then newest first for ties
   const sorted = useMemo(
@@ -68,6 +70,13 @@ export default function CommunityPinsPanel({
             <ArrowUpRight className="h-4 w-4" />
           </Link>
           <button
+            onClick={() => onAddPin(community.id)}
+            title="Drop a pin in this community"
+            className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-indigo-400"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-800 hover:text-white"
           >
@@ -85,6 +94,13 @@ export default function CommunityPinsPanel({
             <p className="text-xs leading-relaxed text-gray-600">
               Be the first to drop a pin in {community.name}!
             </p>
+            <button
+              onClick={() => onAddPin(community.id)}
+              className="mt-1 flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              <Plus className="h-4 w-4" />
+              Drop a pin
+            </button>
           </div>
         ) : (
           <ul className="divide-y divide-gray-800/60">

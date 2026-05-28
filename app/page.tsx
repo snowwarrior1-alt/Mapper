@@ -360,6 +360,7 @@ export default function Home() {
             pins={filteredPins}
             onClose={() => handleSelectCommunity(null)}
             onPinClick={handlePinClick}
+            onAddPin={handleAddPinForCommunity}
           />
         )}
 

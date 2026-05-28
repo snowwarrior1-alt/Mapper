@@ -17,6 +17,8 @@ interface NominatimResult {
 
 interface LocationSearchProps {
   onFlyTo: (lat: number, lng: number, zoom: number) => void
+  /** When a side panel (e.g. community pins) is open, shift left to avoid overlap */
+  panelOpen?: boolean
 }
 
 /** Derive a sensible zoom from the result's bounding box size. */
@@ -34,7 +36,7 @@ function bboxZoom(bb: string[]): number {
   return 3                     // continent / world
 }
 
-export default function LocationSearch({ onFlyTo }: LocationSearchProps) {
+export default function LocationSearch({ onFlyTo, panelOpen = false }: LocationSearchProps) {
   const [query, setQuery]       = useState('')
   const [results, setResults]   = useState<NominatimResult[]>([])
   const [fetching, setFetching] = useState(false)
@@ -133,8 +135,14 @@ export default function LocationSearch({ onFlyTo }: LocationSearchProps) {
   return (
     <div
       ref={containerRef}
-      // Sits top-right of the map, above Leaflet's max z-index (~1000)
-      className="absolute right-4 top-4 z-[1001] w-72 max-w-[calc(100vw-4.5rem)]"
+      // Sits top-right of the map, above Leaflet's max z-index (~1000).
+      // When the community panel is open: hidden on mobile (panel is full-width),
+      // shifted left on sm+ so it clears the 320px panel + 16px gap.
+      className={`absolute top-4 z-[1001] w-72 max-w-[calc(100vw-4.5rem)] transition-[right] duration-200 ${
+        panelOpen
+          ? 'right-4 hidden sm:block sm:right-[336px]'
+          : 'right-4'
+      }`}
     >
       {/* ── Input ── */}
       <div className="relative flex items-center">

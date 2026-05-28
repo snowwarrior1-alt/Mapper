@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   X, Shield, UserPlus, UserMinus, Search, Loader2,
-  CheckCircle2, XCircle, Clock, Settings, Users, Inbox, Lock, Mail, Trash2, AlertTriangle, AlertCircle, Globe,
+  CheckCircle2, XCircle, Clock, Settings, Pencil, Users, Inbox, Lock, Mail, Trash2, AlertTriangle, AlertCircle, Globe,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
@@ -498,7 +498,7 @@ export default function CommunitySettingsModal({
           <TabBtn
             active={activeTab === 'general'}
             onClick={() => setActiveTab('general')}
-            icon={<Settings className="h-3.5 w-3.5" />}
+            icon={<Pencil className="h-3.5 w-3.5" />}
             label="General"
           />
           <TabBtn
@@ -543,7 +543,7 @@ export default function CommunitySettingsModal({
             <div className="p-5">
               <section>
                 <h3 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  <Settings className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5" />
                   Community Name
                 </h3>
                 <p className="mb-3 text-xs text-gray-600">

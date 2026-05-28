@@ -243,6 +243,12 @@ export default function Home() {
         next.delete(communityId)
         return next
       })
+      // If this was the last subscription and we were in subscribed-only mode,
+      // fall back to all-communities view so the map doesn't look empty
+      if (subscribedIds.size === 1 && showSubscribedOnly) {
+        setShowSubscribedOnly(false)
+        userChoseFilter.current = false // allow auto-default to re-activate on re-subscribe
+      }
     } else {
       await supabase
         .from('community_subscriptions')
@@ -305,7 +311,7 @@ export default function Home() {
         onSelectCommunity={handleSelectCommunity}
         onShowSubscribed={handleShowSubscribed}
         onToggleSubscription={handleToggleSubscription}
-        onOpenSettings={(id) => setCommunitySettingsId(id)}
+        onOpenSettings={setCommunitySettingsId}
         onAddPin={handleAddPinForCommunity}
         onOpenSearch={() => setShowSearch(true)}
         pendingInvites={pendingInvites}

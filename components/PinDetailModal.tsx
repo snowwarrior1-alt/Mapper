@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Pin, Comment, PinPhoto } from '@/lib/types'
 import { getSessionId } from '@/lib/session'
-import { timeAgo, timeUntil, avatarColor } from '@/lib/utils'
+import { timeAgo, timeUntil } from '@/lib/utils'
 import Avatar from '@/components/Avatar'
 
 // ── Props ─────────────────────────────────────────────────────────────────────

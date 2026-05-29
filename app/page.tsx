@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Menu, Plus } from 'lucide-react'
+import { Menu, Plus, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
@@ -358,6 +358,35 @@ export default function Home() {
     setCommunityGroupMap((prev) => new Map(prev).set(communityId, groupId))
   }, [user])
 
+  // ── Near Me ───────────────────────────────────────────────────────────────
+  const [locating, setLocating] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
+
+  const handleNearMe = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported')
+      setTimeout(() => setLocationError(null), 3000)
+      return
+    }
+    setLocating(true)
+    setLocationError(null)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        handleFlyTo(coords.latitude, coords.longitude, 14)
+        setLocating(false)
+      },
+      (err) => {
+        setLocationError(
+          err.code === 1 ? 'Location access denied' :
+          err.code === 2 ? 'Location unavailable' : 'Location timed out'
+        )
+        setLocating(false)
+        setTimeout(() => setLocationError(null), 3000)
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    )
+  }
+
   // Mobile FAB — opens AddPinModal at the current map centre
   const handleFabAddPin = () => {
     setPendingCommunityOverride(selectedCommunity)
@@ -440,6 +469,25 @@ export default function Home() {
             setPendingPinTitle(name)
           }}
         />
+
+        {/* Near me — bottom-right of map */}
+        <div className="absolute right-4 bottom-8 z-[1001] flex flex-col items-end gap-2">
+          {locationError && (
+            <div className="rounded-lg border border-red-500/30 bg-gray-900 px-3 py-1.5 text-xs text-red-400 shadow-lg">
+              {locationError}
+            </div>
+          )}
+          <button
+            onClick={handleNearMe}
+            disabled={locating}
+            title="Fly to my location"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-gray-300 shadow-lg transition-colors hover:border-indigo-500 hover:text-white disabled:opacity-50"
+          >
+            {locating
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <LocateFixed className="h-4 w-4" />}
+          </button>
+        </div>
 
         <MapWrapper
           pins={filteredPins}

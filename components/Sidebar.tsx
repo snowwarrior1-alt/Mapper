@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Bookmark, BookmarkCheck, Check, ChevronDown, ChevronRight,
-  Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
+  Compass, Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
   Search, Settings, Shield, Trash2, User2, ArrowUpRight, X,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -667,8 +667,18 @@ export default function Sidebar({
             </div>
           )}
 
+          {/* Discover link */}
+          <Link
+            href="/discover"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+          >
+            <Compass className="h-3.5 w-3.5 shrink-0" />
+            Discover communities
+            <ArrowUpRight className="ml-auto h-3 w-3 opacity-50" />
+          </Link>
+
           {/* Live indicator */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-2">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />

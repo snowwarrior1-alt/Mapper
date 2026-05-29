@@ -16,6 +16,19 @@ export function timeUntil(iso: string): string {
   return `${Math.floor(secs / 86400)}d`
 }
 
+/** Format an event's start (and optional end) datetime for display.
+ *  e.g. "Sat, Jun 14 · 7:00 PM – 10:00 PM"  or  "Sat, Jun 14 · 7:00 PM" */
+export function formatEventDate(start: string, end?: string | null): string {
+  const s = new Date(start)
+  const datePart  = s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const startTime = s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  if (end) {
+    const endTime = new Date(end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    return `${datePart} · ${startTime} – ${endTime}`
+  }
+  return `${datePart} · ${startTime}`
+}
+
 // ── Number formatting ─────────────────────────────────────────────────────────
 
 export function formatCount(n: number): string {

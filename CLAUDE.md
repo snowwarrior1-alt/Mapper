@@ -62,13 +62,30 @@ lib/
   session.ts                # Anonymous session ID for voting (localStorage)
 
 supabase/
-  00-base-schema-migration.sql           # Run FIRST — tables, RLS, seed data
+  schema-current.sql                     # ← USE THIS for a fresh Supabase project (single file, full state)
+  # Incremental migrations (already applied to the live DB — history only):
+  00-base-schema-migration.sql
   01-moderation-migration.sql
   02-community-settings-migration.sql
   03-comments-migration.sql
   04-photos-and-community-page-migration.sql
   05-search-profiles-migration.sql
-  # Files below are SUPERSEDED — do not run:
+  06-private-communities.sql
+  07-email-invites.sql
+  08-reseed-sample-communities.sql       # seed only — safe to skip on fresh setup
+  09-fix-communities-rls-recursion.sql
+  10-owner-as-default-mod.sql
+  11-mod-rename-community.sql
+  12-mod-invite-by-email.sql
+  13-geo-restriction.sql
+  14-geo-approval-trigger.sql
+  15-community-groups.sql
+  16-anonymous-pins.sql
+  17-events-rsvp.sql
+  18-community-tags.sql
+  19-pin-tags-delete.sql
+  20-mod-helper.sql
+  # Superseded — do not run:
   schema.sql
   auth-migration.sql
   community-creation-migration.sql
@@ -78,18 +95,34 @@ supabase/
 | Table | Purpose |
 |---|---|
 | `profiles` | Public user profiles, auto-created on signup via trigger |
-| `communities` | Map communities with color, icon, slug, settings |
-| `pins` | Geo-tagged posts with title, lat/lng, vote_count, status, expires_at |
+| `communities` | Map communities with color, icon, slug, settings, privacy, geo restriction |
+| `community_groups` | Sidebar folders for organising subscriptions |
+| `community_members` | Private-community membership (pending / accepted) |
+| `community_email_invites` | Pending invites for not-yet-registered emails |
+| `community_moderators` | Mod assignments per community |
+| `community_subscriptions` | User subscriptions (with optional group_id folder) |
+| `community_tags` | Mod-defined tag vocabulary per community |
+| `pins` | Geo-tagged posts; nullable user_id (anonymous); optional event fields |
+| `pin_tags` | Many-to-many: pins ↔ community_tags |
 | `votes` | Anonymous votes by session_id (+1/-1), managed by `vote_on_pin()` RPC |
 | `comments` | Comments on pins |
 | `pin_photos` | Photo uploads linked to pins (stored in `pin-photos` Storage bucket) |
-| `community_moderators` | Mod assignments per community |
-| `community_subscriptions` | User subscriptions to communities |
+| `event_rsvps` | "Going" RSVPs for event pins (one per user per pin) |
 
 Key RPCs:
 - `vote_on_pin(p_pin_id, p_session_id, p_value)` — SECURITY DEFINER, handles toggle/switch/new votes
+- `toggle_event_rsvp(p_pin_id)` — SECURITY DEFINER, toggles RSVP; enforces capacity
 - `get_community_stats(p_community_id)` — pin count + subscriber count
 - `get_profile_stats(p_user_id)` — pin count, total votes, community count
+- `rename_community(p_community_id, p_new_name)` — owner or mod only
+- `add_mod_by_email(p_community_id, p_email)` — adds mod by email; reads auth.users
+- `find_profile_by_email(p_email)` — server-side only (service role); used by /api/invite
+
+Key helper functions (SECURITY DEFINER):
+- `is_community_mod(community_id)` — TRUE if caller is owner or assigned mod
+- `is_pin_owner_or_mod(pin_id)` — TRUE if caller is pin author or community mod
+- `can_user_pin_in_community(community_id)` — enforces who_can_pin; handles anonymous
+- `check_community_member(community_id)` — breaks communities ↔ community_members RLS recursion
 
 ## Architecture decisions & gotchas
 
@@ -156,57 +189,32 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - Supabase → Authentication → URL Configuration: Site URL and Redirect URLs set to `https://mapper-gamma.vercel.app/**`
 
 ### Running SQL migrations
-Run in order in Supabase SQL Editor (00 → 05). All use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING` so they're safe to re-run.
+**Fresh project**: run `schema-current.sql` — one file, full schema.
+**Existing project**: run any numbered files you haven't applied yet (00 → 20), in order. All use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING` so they're safe to re-run.
 
 ## Features built
 - Interactive Leaflet map with pin clustering
 - Community sidebar with subscribe, filter, settings
 - Drop pins with title, description, community, optional expiry
+- **Anonymous pins** — no account needed in `who_can_pin = 'anyone'` communities
 - Upvote/downvote pins (anonymous, session-scoped)
 - Comments on pins
 - Photo uploads to pins (Supabase Storage)
 - Community moderation queue (approve/reject pending pins)
 - Community settings: who_can_pin, require_approval, default_pin_duration
-- Moderator management (owners can assign mods)
-- Community rules
+- **Geographic area restriction** — pins outside the area go into mod queue
+- Moderator management (owners assign mods by username or email)
+- Sidebar community folders (drag-and-drop grouping)
 - Cmd/Ctrl+K search modal (communities + pins)
 - Public community pages at `/c/[slug]`
 - Public user profile pages at `/u/[username]`
 - Google OAuth sign-in
+- **Private communities** — invite-only via username or email; non-members can't see pins
 - Mobile-responsive sidebar drawer (hamburger top-left on mobile)
 - Real-time updates (Supabase Realtime channels)
 - Custom 404 page
 - SEO metadata (OpenGraph + Twitter cards) on community and profile pages
 - Any logged-in user can create communities (with duplicate/similar name detection)
 - **Geocoding / map search**: top-right search bar flies the map to any place in the world (Nominatim)
-
-## 🔜 Next session — PRIVATE MAPS
-
-**Reminder for next time**: the user wants to implement **private communities/maps**.
-
-### Use-case
-"I want to create a group map of where all my friends live — but I definitely do not want that to be public."
-
-### What needs to be built
-
-1. **Private community flag**
-   - Add `is_private: boolean` (default `false`) to the `communities` table
-   - Private communities are invisible to non-members in the sidebar, search, and community listing
-   - RLS: non-members cannot SELECT pins or community details for private communities
-
-2. **Membership / invite system** ("friending" / "add to community")
-   - New table: `community_members` (or reuse/extend `community_subscriptions` with a `role` column)
-   - The owner invites users by username or email
-   - Invited users see a notification or accept/decline flow
-   - Only accepted members can view and pin to a private community
-
-3. **Friend graph** (optional but likely needed)
-   - New table: `friendships` with `(requester_id, addressee_id, status: pending|accepted|blocked)`
-   - Friends can be invited to private maps more easily
-   - Could surface a "Friends" tab in the sidebar showing friends' recent pins
-
-### Key design questions to settle at the start of next session
-- Should private communities still use the existing `communities` table (with `is_private` flag) or a separate `private_maps` table?
-- Is the invite model email-based, username-based, or link-based (shareable invite URL)?
-- Should the friend system be a full social graph, or just a lightweight "community member invite" (no global friend list)?
-- What do non-members see when they navigate to a private community's `/c/[slug]` URL — 404, or a "request access" page?
+- **Events / meetups** — event pins with date/time/capacity; Going RSVP; 📅 badge on map marker
+- **Community-managed tags** — mods define tag vocabulary; pinners multi-select tags; edit tags inline on existing pins

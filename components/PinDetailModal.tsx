@@ -11,22 +11,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Pin, Comment, PinPhoto, CommunityTag } from '@/lib/types'
 import { getSessionId } from '@/lib/session'
-import { timeAgo, timeUntil } from '@/lib/utils'
+import { timeAgo, timeUntil, formatEventDate } from '@/lib/utils'
 import Avatar from '@/components/Avatar'
-
-// ── Event date helpers ────────────────────────────────────────────────────────
-
-function formatEventDate(start: string, end?: string | null): string {
-  const s = new Date(start)
-  const datePart = s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-  const startTime = s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  if (end) {
-    const e = new Date(end)
-    const endTime = e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-    return `${datePart} · ${startTime} – ${endTime}`
-  }
-  return `${datePart} · ${startTime}`
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -73,17 +59,46 @@ export default function PinDetailModal({
   const [rsvpError, setRsvpError] = useState<string | null>(null)
   const isEventPast = pin.event_date ? new Date(pin.event_date) < new Date() : false
 
+  // Batch: vote status + photos + tags — three independent reads, one Promise.all per pin open
   useEffect(() => {
-    supabase
-      .from('votes')
-      .select('value')
-      .eq('pin_id', pin.id)
-      .eq('session_id', sessionId)
-      .maybeSingle()
-      .then(({ data }) => setUserVote(data?.value ?? 0))
-  }, [pin.id, sessionId])
+    // Reset all synchronously before the fetches land
+    setUserVote(0)
+    setConfirmDelete(false)
+    setPhotos([])
+    setPhotoIndex(0)
+    setPhotoError(false)
+    setPinTags([])
+    setEditingTags(false)
+    setCommunityTags([])
 
-  useEffect(() => { setConfirmDelete(false) }, [pin.id])
+    Promise.all([
+      supabase
+        .from('votes')
+        .select('value')
+        .eq('pin_id', pin.id)
+        .eq('session_id', sessionId)
+        .maybeSingle(),
+      supabase
+        .from('pin_photos')
+        .select('*')
+        .eq('pin_id', pin.id)
+        .order('created_at'),
+      supabase
+        .from('pin_tags')
+        .select('tag:community_tags(id, community_id, name, created_by, created_at)')
+        .eq('pin_id', pin.id)
+        .order('tag(name)'),
+    ]).then(([voteRes, photosRes, tagsRes]) => {
+      setUserVote(voteRes.data?.value ?? 0)
+      if (photosRes.data) setPhotos(photosRes.data as PinPhoto[])
+      if (tagsRes.data) {
+        const tags = (tagsRes.data as unknown as { tag: CommunityTag | CommunityTag[] }[])
+          .map((r) => (Array.isArray(r.tag) ? r.tag[0] : r.tag))
+          .filter((t): t is CommunityTag => !!t)
+        setPinTags(tags)
+      }
+    })
+  }, [pin.id, sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load RSVP count + user's status whenever the pin changes
   useEffect(() => {
@@ -185,44 +200,13 @@ export default function PinDetailModal({
   const [photoIndex, setPhotoIndex] = useState(0)
   const [photoError, setPhotoError] = useState(false)
 
-  useEffect(() => {
-    setPhotos([])
-    setPhotoIndex(0)
-    setPhotoError(false)
-    supabase
-      .from('pin_photos')
-      .select('*')
-      .eq('pin_id', pin.id)
-      .order('created_at')
-      .then(({ data }) => { if (data) setPhotos(data) })
-  }, [pin.id])
-
-  // ── Tags (display + inline editing) ──────────────────────────────────────
+  // ── Tags (inline editing) ────────────────────────────────────────────────
+  // pinTags / photos / vote are fetched in the batched effect above.
   const [pinTags, setPinTags] = useState<CommunityTag[]>([])
   const [editingTags, setEditingTags] = useState(false)
   const [communityTags, setCommunityTags] = useState<CommunityTag[]>([])
   const [loadingCommunityTags, setLoadingCommunityTags] = useState(false)
   const [togglingTagId, setTogglingTagId] = useState<string | null>(null)
-
-  // Fetch this pin's applied tags whenever the pin changes
-  useEffect(() => {
-    setPinTags([])
-    setEditingTags(false)
-    setCommunityTags([])
-    supabase
-      .from('pin_tags')
-      .select('tag:community_tags(id, community_id, name, created_by, created_at)')
-      .eq('pin_id', pin.id)
-      .order('tag(name)')
-      .then(({ data }) => {
-        if (data) {
-          const tags = (data as unknown as { tag: CommunityTag | CommunityTag[] }[])
-            .map((r) => (Array.isArray(r.tag) ? r.tag[0] : r.tag))
-            .filter((t): t is CommunityTag => !!t)
-          setPinTags(tags)
-        }
-      })
-  }, [pin.id])
 
   // Fetch the community's full tag vocabulary when the editor is opened
   useEffect(() => {

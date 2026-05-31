@@ -51,7 +51,7 @@ export default function Home() {
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
-  const [sidebarTab, setSidebarTab] = useState<'communities' | 'following'>('communities')
+  const [sidebarTab, setSidebarTab] = useState<'communities' | 'feed'>('communities')
 
   // Community groups (personal folders for organising subscriptions)
   const [groups, setGroups] = useState<CommunityGroup[]>([])
@@ -680,7 +680,7 @@ export default function Home() {
           <BottomNav
             username={myUsername}
             onMap={() => { setSelectedPin(null); handleSelectCommunity(null); setShowMobileSidebar(false) }}
-            onFollowing={() => { setSidebarTab('following'); setShowMobileSidebar(true) }}
+            onFeed={() => { setSidebarTab('feed'); setShowMobileSidebar(true) }}
             onSignIn={() => setShowAuthModal(true)}
           />
         )}

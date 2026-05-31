@@ -1,45 +1,58 @@
 'use client'
 
 import { useMemo } from 'react'
-import Link from 'next/link'
-import { Users, MapPin, ThumbsUp, Calendar, UserPlus } from 'lucide-react'
+import { Newspaper, MapPin, ThumbsUp, Calendar, Star, BookmarkCheck, UserPlus } from 'lucide-react'
 import { Pin } from '@/lib/types'
 import { timeAgo } from '@/lib/utils'
 import Avatar from '@/components/Avatar'
 
-interface FollowingPanelProps {
+interface ActivityFeedProps {
   pins: Pin[]
+  /** User IDs the current user follows */
   followedUserIds: Set<string>
+  /** Community IDs the current user subscribes to */
+  subscribedIds: Set<string>
   /** Fly to + open the pin */
   onSelectPin: (pin: Pin) => void
   signedIn: boolean
   onSignIn: () => void
 }
 
-export default function FollowingPanel({
+const FEED_LIMIT = 60
+
+export default function ActivityFeed({
   pins,
   followedUserIds,
+  subscribedIds,
   onSelectPin,
   signedIn,
   onSignIn,
-}: FollowingPanelProps) {
-  // Most-recent-first feed of pins from people the user follows
-  const feed = useMemo(
-    () =>
-      pins
-        .filter((p) => p.user_id && followedUserIds.has(p.user_id))
-        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
-    [pins, followedUserIds]
-  )
+}: ActivityFeedProps) {
+  // Union of (pins by followed users) ∪ (pins in subscribed communities),
+  // most-recent-first. Each item is tagged with WHY it's here.
+  const feed = useMemo(() => {
+    return pins
+      .map((p) => {
+        const byFollowed = !!p.user_id && followedUserIds.has(p.user_id)
+        const bySubscribed = subscribedIds.has(p.community_id)
+        return { pin: p, byFollowed, bySubscribed }
+      })
+      .filter((x) => x.byFollowed || x.bySubscribed)
+      .sort((a, b) => b.pin.created_at.localeCompare(a.pin.created_at))
+      .slice(0, FEED_LIMIT)
+  }, [pins, followedUserIds, subscribedIds])
+
+  const hasSources = followedUserIds.size > 0 || subscribedIds.size > 0
 
   // ── Empty states ──────────────────────────────────────────────────────────
   if (!signedIn) {
     return (
       <div className="px-3 py-10 text-center">
-        <Users className="mx-auto mb-3 h-8 w-8 text-gray-700" />
-        <p className="text-sm font-medium text-gray-400">Follow people you like</p>
+        <Newspaper className="mx-auto mb-3 h-8 w-8 text-gray-700" />
+        <p className="text-sm font-medium text-gray-400">Your activity feed</p>
         <p className="mx-auto mt-1 max-w-[16rem] text-xs text-gray-600">
-          Sign in, then follow other mappers to see their latest pins here.
+          Sign in, then follow people and subscribe to communities to see their
+          latest pins here.
         </p>
         <button
           onClick={onSignIn}
@@ -51,14 +64,14 @@ export default function FollowingPanel({
     )
   }
 
-  if (followedUserIds.size === 0) {
+  if (!hasSources) {
     return (
       <div className="px-3 py-10 text-center">
         <UserPlus className="mx-auto mb-3 h-8 w-8 text-gray-700" />
-        <p className="text-sm font-medium text-gray-400">You&apos;re not following anyone yet</p>
+        <p className="text-sm font-medium text-gray-400">Nothing in your feed yet</p>
         <p className="mx-auto mt-1 max-w-[16rem] text-xs text-gray-600">
-          Open any pin and tap the author, or visit a profile, to follow them.
-          Their pins will show up here and get a ⭐ on the map.
+          Subscribe to communities or follow other mappers and their newest pins
+          will gather here.
         </p>
       </div>
     )
@@ -70,7 +83,8 @@ export default function FollowingPanel({
         <MapPin className="mx-auto mb-3 h-8 w-8 text-gray-700" />
         <p className="text-sm font-medium text-gray-400">No recent activity</p>
         <p className="mx-auto mt-1 max-w-[16rem] text-xs text-gray-600">
-          The people you follow haven&apos;t dropped any pins lately. Check back soon!
+          Your communities and the people you follow haven&apos;t dropped any pins
+          lately. Check back soon!
         </p>
       </div>
     )
@@ -79,7 +93,7 @@ export default function FollowingPanel({
   // ── Feed ──────────────────────────────────────────────────────────────────
   return (
     <ul className="space-y-1.5">
-      {feed.map((pin) => {
+      {feed.map(({ pin, byFollowed, bySubscribed }) => {
         const comm = pin.community
         const voteColor =
           pin.vote_count > 0 ? 'text-green-400' : pin.vote_count < 0 ? 'text-red-400' : 'text-gray-600'
@@ -103,6 +117,16 @@ export default function FollowingPanel({
                   </span>
                   <span>·</span>
                   <span className="shrink-0">{timeAgo(pin.created_at)}</span>
+                  {/* Why this is in your feed */}
+                  {byFollowed ? (
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 text-amber-400" title="From someone you follow">
+                      <Star className="h-3 w-3 fill-current" />
+                    </span>
+                  ) : bySubscribed ? (
+                    <span className="ml-auto flex shrink-0 items-center gap-0.5 text-indigo-400" title="From a community you subscribe to">
+                      <BookmarkCheck className="h-3 w-3" />
+                    </span>
+                  ) : null}
                 </div>
 
                 <p className="mt-0.5 flex items-center gap-1 truncate text-sm font-medium text-white">

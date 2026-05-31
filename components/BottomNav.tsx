@@ -1,15 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { Map as MapIcon, Compass, Users, User2 } from 'lucide-react'
+import { Map as MapIcon, Compass, Newspaper, User2 } from 'lucide-react'
 
 interface BottomNavProps {
   /** Username of the signed-in user, or null when signed out */
   username: string | null
   /** Tap "Map" — close any open panel/overlay and return to the bare map */
   onMap: () => void
-  /** Tap "Following" — open the sidebar on the Following tab */
-  onFollowing: () => void
+  /** Tap "Feed" — open the sidebar on the activity-feed tab */
+  onFeed: () => void
   /** Tap "Profile" while signed out — open the auth modal */
   onSignIn: () => void
 }
@@ -40,12 +40,12 @@ function Item({
 }
 
 /** Mobile-only persistent bottom navigation. Hidden on md+ (desktop uses the sidebar). */
-export default function BottomNav({ username, onMap, onFollowing, onSignIn }: BottomNavProps) {
+export default function BottomNav({ username, onMap, onFeed, onSignIn }: BottomNavProps) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-[1100] flex h-14 items-stretch border-t border-gray-800 bg-gray-900/95 backdrop-blur-sm md:hidden">
       <Item icon={<MapIcon className="h-5 w-5" />} label="Map" active onClick={onMap} />
       <Item icon={<Compass className="h-5 w-5" />} label="Discover" href="/discover" />
-      <Item icon={<Users className="h-5 w-5" />} label="Following" onClick={onFollowing} />
+      <Item icon={<Newspaper className="h-5 w-5" />} label="Feed" onClick={onFeed} />
       {username ? (
         <Item icon={<User2 className="h-5 w-5" />} label="Profile" href={`/u/${username}`} />
       ) : (

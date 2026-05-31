@@ -4,13 +4,13 @@ import { useState } from 'react'
 import {
   Bookmark, BookmarkCheck, Check, ChevronDown, ChevronRight,
   Compass, Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
-  Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Users,
+  Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Newspaper,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { Community, CommunityGroup, Pin, PendingInvite } from '@/lib/types'
 import Avatar from '@/components/Avatar'
-import FollowingPanel from '@/components/FollowingPanel'
+import ActivityFeed from '@/components/ActivityFeed'
 
 export type { PendingInvite }
 
@@ -39,8 +39,8 @@ interface SidebarProps {
   /** Fly to + open a pin (used by the Following feed) */
   onSelectPin: (pin: Pin) => void
   /** Which list the sidebar shows — controlled by the parent so the bottom nav can switch it */
-  tab: 'communities' | 'following'
-  onTabChange: (tab: 'communities' | 'following') => void
+  tab: 'communities' | 'feed'
+  onTabChange: (tab: 'communities' | 'feed') => void
   onSelectCommunity: (id: string | null) => void
   onShowSubscribed: () => void
   onToggleSubscription: (id: string) => void
@@ -454,28 +454,24 @@ export default function Sidebar({
               Communities
             </button>
             <button
-              onClick={() => onTabChange('following')}
+              onClick={() => onTabChange('feed')}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
-                tab === 'following' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
+                tab === 'feed' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <Users className="h-3.5 w-3.5" />
-              Following
-              {followedUserIds.size > 0 && (
-                <span className="rounded-full bg-amber-500/20 px-1.5 text-[10px] font-semibold text-amber-400">
-                  {followedUserIds.size}
-                </span>
-              )}
+              <Newspaper className="h-3.5 w-3.5" />
+              Feed
             </button>
           </div>
         </div>
 
-        {/* ── Following feed ── */}
-        {tab === 'following' && (
+        {/* ── Activity feed ── */}
+        {tab === 'feed' && (
           <div className="flex-1 overflow-y-auto p-3">
-            <FollowingPanel
+            <ActivityFeed
               pins={pins}
               followedUserIds={followedUserIds}
+              subscribedIds={subscribedIds}
               onSelectPin={onSelectPin}
               signedIn={!!user}
               onSignIn={onSignIn}

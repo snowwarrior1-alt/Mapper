@@ -38,6 +38,9 @@ interface SidebarProps {
   followedUserIds: Set<string>
   /** Fly to + open a pin (used by the Following feed) */
   onSelectPin: (pin: Pin) => void
+  /** Which list the sidebar shows — controlled by the parent so the bottom nav can switch it */
+  tab: 'communities' | 'following'
+  onTabChange: (tab: 'communities' | 'following') => void
   onSelectCommunity: (id: string | null) => void
   onShowSubscribed: () => void
   onToggleSubscription: (id: string) => void
@@ -73,6 +76,8 @@ export default function Sidebar({
   communityGroupMap,
   followedUserIds,
   onSelectPin,
+  tab,
+  onTabChange,
   onSelectCommunity,
   onShowSubscribed,
   onToggleSubscription,
@@ -95,7 +100,6 @@ export default function Sidebar({
   isAdmin = false,
 }: SidebarProps) {
   // ── Local UI state ──────────────────────────────────────────────────────
-  const [tab, setTab] = useState<'communities' | 'following'>('communities')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [groupPicker, setGroupPicker]         = useState<string | null>(null) // communityId
   const [pickerCreating, setPickerCreating]   = useState(false)
@@ -441,7 +445,7 @@ export default function Sidebar({
           {/* ── Communities / Following tab switcher ── */}
           <div className="mt-3 flex gap-1 rounded-lg bg-gray-800/60 p-1">
             <button
-              onClick={() => setTab('communities')}
+              onClick={() => onTabChange('communities')}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
                 tab === 'communities' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
               }`}
@@ -450,7 +454,7 @@ export default function Sidebar({
               Communities
             </button>
             <button
-              onClick={() => setTab('following')}
+              onClick={() => onTabChange('following')}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
                 tab === 'following' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'
               }`}

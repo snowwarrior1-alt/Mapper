@@ -54,6 +54,8 @@ components/
   SearchModal.tsx           # Cmd/Ctrl+K command palette search (communities + pins)
   LocationSearch.tsx        # Top-right map geocoding search (Nominatim, no API key)
   Avatar.tsx                # Shared avatar component (image or initials fallback)
+  FollowingPanel.tsx        # Sidebar "Following" tab: recent pins from followed users
+  BottomNav.tsx             # Mobile-only persistent bottom tab bar (Map/Discover/Following/Profile)
 
 lib/
   supabase.ts               # Supabase client (validates env vars at startup)
@@ -151,13 +153,23 @@ Key helper functions (SECURITY DEFINER):
 | Tier | z-index | What |
 |---|---|---|
 | Map base | ≤ 1000 | Leaflet tiles / markers / zoom control (internal) |
-| Map controls | `z-[1100]` | Hamburger, LocationSearch, Near Me, mobile FAB |
+| Map controls | `z-[1100]` | Hamburger, LocationSearch, Near Me, mobile FAB, BottomNav |
 | Community panel | `z-[1150]` | `CommunityPinsPanel` (bottom sheet on mobile, side column on desktop) |
 | Mid modals | `z-[1200]` | `AddPinModal`, `PinDetailModal`, `CreateCommunityModal` |
 | Top modals | `z-[1300]` | `AuthModal`, `SearchModal`, `CommunitySettingsModal` |
 | Mobile sidebar | `z-[1400]` backdrop / `z-[1401]` drawer | nav drawer (drawer drops to `z-auto` on `md:`) |
 
-- **Map controls hide when an overlay is open.** `app/page.tsx` derives `panelOpen` / `modalOpen` / `overlayOpen`; the hamburger, FAB, and Near Me are gated on `overlayOpen`, and `LocationSearch` is unmounted while `modalOpen`. This prevents the floating controls from rendering on top of a sheet on mobile.
+- **Map controls hide when an overlay is open.** `app/page.tsx` derives `panelOpen` / `modalOpen` / `overlayOpen`; the hamburger, FAB, Near Me, and `BottomNav` are gated on `overlayOpen`, and `LocationSearch` is unmounted while `modalOpen`. This prevents the floating controls from rendering on top of a sheet on mobile.
+
+### Mobile bottom navigation
+- `BottomNav` (`md:hidden`, `z-[1100]`) is a persistent tab bar: **Map / Discover / Following / Profile**. Rendered in `app/page.tsx`, hidden when `overlayOpen`.
+- "Following" opens the mobile sidebar pre-set to its Following tab — the sidebar's tab state is **lifted into `app/page.tsx`** (`sidebarTab` / `setSidebarTab`) and passed to `Sidebar` as `tab` / `onTabChange` so the nav can switch it.
+- "Profile" links to `/u/<myUsername>` (fetched from `profiles` for the signed-in user) or opens the auth modal when signed out.
+- The bottom-right map controls (Near Me `bottom-20 md:bottom-8`, FAB `bottom-36 md:bottom-28`) and Leaflet's bottom controls (`globals.css` shifts `.leaflet-bottom` up `3.5rem` on mobile) are raised to clear the 56px nav.
+
+### Modals are bottom sheets on mobile
+- All modals use the pattern: outer `flex items-end ... sm:items-center sm:p-4`, inner `rounded-t-2xl sm:rounded-2xl` with a `sm:hidden` drag-handle and `maxHeight: 90vh`.
+- Applies to `AddPinModal`, `PinDetailModal`, `AuthModal`, `CreateCommunityModal`, `CommunitySettingsModal`. Keep new modals consistent with this.
 
 ### LocationSearch (geocoding)
 - Uses **Nominatim** (OpenStreetMap) — free, no API key, rate limit ~1 req/s
@@ -233,3 +245,4 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **Discover page** (`/discover`) — browse/search/sort all public communities; subscribe inline
 - **Near Me** — geolocation button flies the map to the user's location
 - **User follows** — follow other mappers; Sidebar "Following" tab shows their recent pin activity; followed users' pins get a ⭐ badge + amber ring on the map; follower/following counts + Follow button on profile pages
+- **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

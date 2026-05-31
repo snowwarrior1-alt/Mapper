@@ -150,10 +150,14 @@ export default function CreateCommunityModal({
 
   return (
     <div
-      className="absolute inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4"
+      className="absolute inset-0 z-[1200] flex items-end bg-black/50 sm:items-center sm:justify-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-lg overflow-y-auto overflow-x-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: '90vh' }}>
+      <div className="w-full overflow-y-auto overflow-x-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-lg sm:rounded-2xl" style={{ maxHeight: '90vh' }}>
+        {/* Drag handle — mobile only */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-gray-700" />
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
           <div className="flex items-center gap-2">

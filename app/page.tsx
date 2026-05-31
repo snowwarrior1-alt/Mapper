@@ -17,6 +17,7 @@ import CreateCommunityModal from '@/components/CreateCommunityModal'
 import CommunitySettingsModal from '@/components/CommunitySettingsModal'
 import CommunityPinsPanel from '@/components/CommunityPinsPanel'
 import SearchModal from '@/components/SearchModal'
+import BottomNav from '@/components/BottomNav'
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null)
@@ -47,6 +48,10 @@ export default function Home() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   // User IDs the current user follows
   const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
+  // Current user's profile username (for the bottom-nav Profile link)
+  const [myUsername, setMyUsername] = useState<string | null>(null)
+  // Which list the sidebar shows — lifted here so the bottom nav can switch it
+  const [sidebarTab, setSidebarTab] = useState<'communities' | 'following'>('communities')
 
   // Community groups (personal folders for organising subscriptions)
   const [groups, setGroups] = useState<CommunityGroup[]>([])
@@ -137,6 +142,16 @@ export default function Home() {
     if (data) setFollowedUserIds(new Set(data.map((f) => f.followee_id)))
   }, [user])
 
+  const fetchMyUsername = useCallback(async () => {
+    if (!user) { setMyUsername(null); return }
+    const { data } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .maybeSingle()
+    setMyUsername(data?.username ?? null)
+  }, [user])
+
   const fetchPendingInvites = useCallback(async () => {
     if (!user) { setPendingInvites([]); return }
     const { data } = await supabase
@@ -163,6 +178,7 @@ export default function Home() {
   useEffect(() => { fetchPendingInvites() }, [fetchPendingInvites])
   useEffect(() => { fetchGroups() }, [fetchGroups])
   useEffect(() => { fetchFollowing() }, [fetchFollowing])
+  useEffect(() => { fetchMyUsername() }, [fetchMyUsername])
 
   // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
   useEffect(() => {
@@ -471,6 +487,8 @@ export default function Home() {
         communityGroupMap={communityGroupMap}
         followedUserIds={followedUserIds}
         onSelectPin={handleSelectPin}
+        tab={sidebarTab}
+        onTabChange={setSidebarTab}
         onCreateGroup={handleCreateGroup}
         onRenameGroup={handleRenameGroup}
         onDeleteGroup={handleDeleteGroup}
@@ -504,7 +522,7 @@ export default function Home() {
           <button
             onClick={handleFabAddPin}
             aria-label="Drop a pin"
-            className="fixed bottom-28 right-4 z-[1100] flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl transition-transform active:scale-95 hover:bg-indigo-500 md:hidden"
+            className="fixed bottom-36 right-4 z-[1100] flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl transition-transform active:scale-95 hover:bg-indigo-500 md:bottom-28 md:hidden"
           >
             <Plus className="h-7 w-7" />
           </button>
@@ -525,7 +543,7 @@ export default function Home() {
 
         {/* Near me — bottom-right of map; hidden when any overlay is open */}
         {!overlayOpen && (
-          <div className="absolute right-4 bottom-8 z-[1100] flex flex-col items-end gap-2">
+          <div className="absolute right-4 bottom-20 z-[1100] flex flex-col items-end gap-2 md:bottom-8">
             {locationError && (
               <div className="rounded-lg border border-red-500/30 bg-gray-900 px-3 py-1.5 text-xs text-red-400 shadow-lg">
                 {locationError}
@@ -654,6 +672,16 @@ export default function Home() {
               if (selectedCommunity === settingsCommunity.id) setSelectedCommunity(null)
               setCommunitySettingsId(null)
             }}
+          />
+        )}
+
+        {/* Persistent bottom nav — mobile only; hidden while an overlay owns the screen */}
+        {!overlayOpen && (
+          <BottomNav
+            username={myUsername}
+            onMap={() => { setSelectedPin(null); handleSelectCommunity(null); setShowMobileSidebar(false) }}
+            onFollowing={() => { setSidebarTab('following'); setShowMobileSidebar(true) }}
+            onSignIn={() => setShowAuthModal(true)}
           />
         )}
       </main>

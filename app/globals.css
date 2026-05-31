@@ -15,3 +15,11 @@ body {
 .leaflet-control-container {
   z-index: 50 !important;
 }
+
+/* On mobile, lift Leaflet's bottom controls (zoom, attribution) above the
+   persistent bottom nav (h-14 = 3.5rem) so they aren't hidden behind it. */
+@media (max-width: 767px) {
+  .leaflet-bottom {
+    bottom: 3.5rem;
+  }
+}

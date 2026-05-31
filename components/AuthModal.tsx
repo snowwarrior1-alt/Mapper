@@ -63,10 +63,14 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
   return (
     <div
-      className="absolute inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4"
+      className="absolute inset-0 z-[1300] flex items-end bg-black/60 sm:items-center sm:justify-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
+      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-sm sm:rounded-2xl" style={{ maxHeight: '90vh' }}>
+        {/* Drag handle — mobile only */}
+        <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-gray-700" />
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
           <div>

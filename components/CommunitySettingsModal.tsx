@@ -584,8 +584,15 @@ export default function CommunitySettingsModal({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="absolute inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl" style={{ maxHeight: '90vh' }}>
+    <div
+      className="absolute inset-0 z-[1300] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-md sm:rounded-2xl" style={{ maxHeight: '90vh' }}>
+        {/* Drag handle — mobile only */}
+        <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-gray-700" />
+        </div>
 
         {/* Header */}
         <div

@@ -56,6 +56,8 @@ components/
   Avatar.tsx                # Shared avatar component (image or initials fallback)
   ActivityFeed.tsx          # Sidebar "Feed" tab: unified feed (followed users + subscribed communities)
   BottomNav.tsx             # Mobile-only persistent bottom tab bar (Map/Discover/Feed/Profile)
+  MapStyleSwitcher.tsx      # Light/Dark/Satellite tile picker (bottom-left of map)
+  QuickAddSheet.tsx         # GPS quick-add: reverse-geocode + nearby POIs (Overpass), pre-filled sheet
 
 lib/
   supabase.ts               # Supabase client (validates env vars at startup)
@@ -263,4 +265,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **External links on pins** — optional `pins.url` (http/https, CHECK-constrained + client-validated `safeUrl`); shown as a "Visit site" button in the detail modal
 - **Tag filtering** — filter chips in `CommunityPinsPanel` narrow the map + list to pins carrying the selected community tags (`selectedTagIds`; pins carry `tag_ids` from the `pin_tags` join)
 - **Shareable pin links** — `/?pin=<id>` opens + flies to a pin on load; "Share" button in the detail modal copies the link
+- **Quick add** — the mobile FAB opens `QuickAddSheet`: grabs GPS, reverse-geocodes the address (Nominatim) and lists nearby named POIs (Overpass API) so you can tap the bar/cafe you're standing in. Pre-fills title from the chosen place; defaults the community to the focused/last-used one (`lastCommunityId` in localStorage); "More options" hands off to the full `AddPinModal`
 - **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

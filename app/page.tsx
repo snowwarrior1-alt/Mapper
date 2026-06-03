@@ -19,6 +19,7 @@ import CommunityPinsPanel from '@/components/CommunityPinsPanel'
 import SearchModal from '@/components/SearchModal'
 import BottomNav from '@/components/BottomNav'
 import MapStyleSwitcher from '@/components/MapStyleSwitcher'
+import QuickAddSheet from '@/components/QuickAddSheet'
 import type { MapStyle } from '@/components/MapInner'
 
 export default function Home() {
@@ -28,6 +29,7 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [communitySettingsId, setCommunitySettingsId] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null)
   const flyToCounter = useRef(0)
@@ -514,10 +516,15 @@ export default function Home() {
     )
   }
 
-  // Mobile FAB — opens AddPinModal at the current map centre
-  const handleFabAddPin = () => {
-    setPendingCommunityOverride(selectedCommunity)
-    setPendingLatLng([mapCenter[0], mapCenter[1]])
+  // Mobile FAB — opens the quick-add sheet (GPS + nearby place suggestions)
+  const handleFabAddPin = () => setShowQuickAdd(true)
+
+  // Quick-add → "More options": hand off to the full Add Pin modal, pre-filled
+  const handleQuickAddMore = (lat: number, lng: number, title: string, communityId: string | null) => {
+    setShowQuickAdd(false)
+    setPendingCommunityOverride(communityId)
+    setPendingPinTitle(title || null)
+    setPendingLatLng([lat, lng])
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -536,7 +543,7 @@ export default function Home() {
   const panelOpen = !!selectedCommunityObj
   const modalOpen =
     !!pendingLatLng || !!selectedPin || showAuthModal || showSearch ||
-    showCreateModal || !!communitySettingsId
+    showCreateModal || !!communitySettingsId || showQuickAdd
   const overlayOpen = panelOpen || modalOpen
 
   return (
@@ -699,6 +706,20 @@ export default function Home() {
             onClose={() => { setPendingLatLng(null); setPendingCommunityOverride(null); setPendingPinTitle(null) }}
             onSuccess={() => { setPendingLatLng(null); setPendingCommunityOverride(null); setPendingPinTitle(null); fetchPins() }}
             onSignIn={() => { setShowAuthModal(true) }}
+          />
+        )}
+
+        {showQuickAdd && !showAuthModal && (
+          <QuickAddSheet
+            communities={communities}
+            userId={user?.id ?? null}
+            subscribedIds={subscribedIds}
+            moderatedIds={moderatedIds}
+            preferredCommunityId={selectedCommunity}
+            onClose={() => setShowQuickAdd(false)}
+            onSuccess={() => { setShowQuickAdd(false); fetchPins() }}
+            onSignIn={() => setShowAuthModal(true)}
+            onMoreOptions={handleQuickAddMore}
           />
         )}
 

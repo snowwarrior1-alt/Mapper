@@ -267,6 +267,9 @@ export default function AddPinModal({
 
     const pinId = pinData.id
 
+    // Remember the community for the next quick-add default
+    try { localStorage.setItem('lastCommunityId', communityId) } catch { /* ignore */ }
+
     // Step 2: Upload photos (only for authenticated users)
     if (photos.length > 0 && userId) {
       for (let i = 0; i < photos.length; i++) {

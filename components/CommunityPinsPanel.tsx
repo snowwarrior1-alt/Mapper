@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { X, ThumbsUp, ThumbsDown, Clock, ArrowUpRight, Lock, Plus, MapPin } from 'lucide-react'
+import { X, ThumbsUp, ThumbsDown, Clock, ArrowUpRight, Lock, Plus, MapPin, Search } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Community, CommunityTag, Pin } from '@/lib/types'
@@ -47,6 +47,22 @@ export default function CommunityPinsPanel({
       ),
     [pins]
   )
+
+  // ── Text search within the community's pins ────────────────────────────────
+  const [query, setQuery] = useState('')
+  // Reset the search box when switching communities
+  useEffect(() => { setQuery('') }, [community.id])
+  const displayed = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return sorted
+    return sorted.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        (p.description ?? '').toLowerCase().includes(q)
+    )
+  }, [sorted, query])
+  // Show the search box once a community has a non-trivial number of pins
+  const showSearch = sorted.length > 5
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-[1150] flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl border border-gray-800 bg-gray-900/95 shadow-2xl backdrop-blur-sm sm:bottom-auto sm:left-auto sm:top-0 sm:h-full sm:max-h-none sm:w-80 sm:rounded-none sm:border-b-0 sm:border-l sm:border-r-0 sm:border-t-0">
@@ -143,6 +159,31 @@ export default function CommunityPinsPanel({
         </div>
       )}
 
+      {/* ── Search box ───────────────────────────────────────────────── */}
+      {showSearch && (
+        <div className="shrink-0 border-b border-gray-800 px-3 py-2.5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${sorted.length} pins…`}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 py-2 pl-9 pr-8 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-500 transition-colors hover:text-gray-300"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Pin list ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
@@ -160,9 +201,20 @@ export default function CommunityPinsPanel({
               Drop a pin
             </button>
           </div>
+        ) : displayed.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            <Search className="h-7 w-7 text-gray-700" />
+            <p className="text-sm font-medium text-gray-400">No pins match “{query}”</p>
+            <button
+              onClick={() => setQuery('')}
+              className="text-xs text-indigo-400 transition-colors hover:text-indigo-300"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <ul className="divide-y divide-gray-800/60">
-            {sorted.map((pin) => {
+            {displayed.map((pin) => {
               const isPositive = pin.vote_count > 0
               const isNegative = pin.vote_count < 0
               const voteColor = isPositive

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Community, CommunityTag, WHO_CAN_PIN_LABELS, GeoRestriction } from '@/lib/types'
 import { LIMITS, DEBOUNCE_MS } from '@/lib/constants'
 import { useDebounce } from '@/lib/hooks'
+import { canUserPinInCommunity } from '@/lib/utils'
 
 // ── Nominatim result shape ────────────────────────────────────────────────────
 
@@ -20,19 +21,6 @@ interface NominatimResult {
 
 const DURATION_SHORT: Record<string, string> = {
   '1d': '24 h', '7d': '7 d', '30d': '30 d', '90d': '90 d',
-}
-
-function canUserPin(
-  community: Community,
-  userId: string | null,
-  subscribedIds: Set<string>,
-  moderatedIds: Set<string>,
-): boolean {
-  if (community.who_can_pin === 'anyone') return true
-  if (!userId) return false  // anonymous users can only pin in 'anyone' communities
-  if (community.who_can_pin === 'subscribers') return subscribedIds.has(community.id)
-  if (community.who_can_pin === 'mods') return moderatedIds.has(community.id)
-  return true
 }
 
 function randomHex(len = 8) {
@@ -189,7 +177,7 @@ export default function AddPinModal({
   const isPending = selectedCommunity?.require_approval ?? false
   const hasDuration = selectedCommunity?.default_pin_duration !== 'permanent'
   const durationLabel = selectedCommunity ? DURATION_SHORT[selectedCommunity.default_pin_duration] ?? null : null
-  const userCanPin = selectedCommunity ? canUserPin(selectedCommunity, userId, subscribedIds, moderatedIds) : true
+  const userCanPin = selectedCommunity ? canUserPinInCommunity(selectedCommunity, userId, subscribedIds, moderatedIds) : true
 
   // ── Geographic restriction check ─────────────────────────────────────────
   const geoRestriction: GeoRestriction | null = selectedCommunity?.geo_restriction ?? null
@@ -413,7 +401,7 @@ export default function AddPinModal({
               <div className="grid grid-cols-2 gap-2">
                 {communities.map((c) => {
                   const active = communityId === c.id
-                  const allowed = canUserPin(c, userId, subscribedIds, moderatedIds)
+                  const allowed = canUserPinInCommunity(c, userId, subscribedIds, moderatedIds)
                   return (
                     <button
                       key={c.id}

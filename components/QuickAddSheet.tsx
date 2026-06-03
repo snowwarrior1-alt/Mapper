@@ -2,53 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  X, Loader2, MapPin, LocateFixed, Navigation, Check, Plus, Zap, ChevronRight, Lock,
+  X, Loader2, MapPin, LocateFixed, Check, Plus, Zap, ChevronRight, Lock,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Community, WhoCanPin } from '@/lib/types'
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function canPin(c: Community, userId: string | null, subs: Set<string>, mods: Set<string>): boolean {
-  if (c.who_can_pin === ('anyone' as WhoCanPin)) return true
-  if (!userId) return false
-  if (c.who_can_pin === 'subscribers') return subs.has(c.id)
-  if (c.who_can_pin === 'mods') return mods.has(c.id)
-  return true
-}
-
-/** Rough metres between two lat/lng points (haversine). */
-function distanceM(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 6371000
-  const dLat = ((bLat - aLat) * Math.PI) / 180
-  const dLng = ((bLng - aLng) * Math.PI) / 180
-  const la1 = (aLat * Math.PI) / 180
-  const la2 = (bLat * Math.PI) / 180
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(h))
-}
-
-function fmtDist(m: number): string {
-  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
-}
-
-interface Suggestion {
-  key: string
-  name: string
-  category: string
-  lat: number
-  lng: number
-  dist: number
-}
-
-interface OverpassEl {
-  type: string
-  id: number
-  lat?: number
-  lon?: number
-  center?: { lat: number; lon: number }
-  tags?: Record<string, string>
-}
+import { Community } from '@/lib/types'
+import { canUserPinInCommunity } from '@/lib/utils'
+import { reverseGeocode, formatAddress, nearbyPlaces, formatDistance, type NearbyPlace } from '@/lib/geo'
 
 const LAST_COMMUNITY_KEY = 'lastCommunityId'
 
@@ -79,7 +38,7 @@ export default function QuickAddSheet({
   onSignIn,
   onMoreOptions,
 }: QuickAddSheetProps) {
-  const pinnable = communities.filter((c) => canPin(c, userId, subscribedIds, moderatedIds))
+  const pinnable = communities.filter((c) => canUserPinInCommunity(c, userId, subscribedIds, moderatedIds))
 
   // Default community: focused → last-used → first pinnable
   const [communityId, setCommunityId] = useState<string>(() => {
@@ -93,7 +52,7 @@ export default function QuickAddSheet({
   const [geoError, setGeoError] = useState<string | null>(null)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [address, setAddress] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [suggestions, setSuggestions] = useState<NearbyPlace[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
   // Chosen target: 'me' = raw GPS point, or a suggestion key
@@ -137,58 +96,12 @@ export default function QuickAddSheet({
 
   const loadAround = async (lat: number, lng: number) => {
     setLoadingSuggestions(true)
-
-    // Reverse geocode (street address) — independent of POI lookup
-    const reverse = fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { headers: { 'Accept-Language': 'en' } }
-    )
-      .then((r) => r.json())
-      .then((d: { address?: Record<string, string>; display_name?: string }) => {
-        const a = d.address ?? {}
-        const street = [a.house_number, a.road ?? a.pedestrian ?? a.footway].filter(Boolean).join(' ')
-        const city = a.city ?? a.town ?? a.village ?? a.suburb
-        const parts = [street, city].filter(Boolean)
-        setAddress(parts.join(', ') || d.display_name?.split(', ').slice(0, 2).join(', ') || null)
-      })
-      .catch(() => {})
-
-    // Nearby named POIs via Overpass
-    const q =
-      `[out:json][timeout:8];(` +
-      `nwr(around:70,${lat},${lng})[name][amenity];` +
-      `nwr(around:70,${lat},${lng})[name][shop];` +
-      `nwr(around:70,${lat},${lng})[name][leisure];` +
-      `nwr(around:70,${lat},${lng})[name][tourism];` +
-      `);out center tags 25;`
-    const overpass = fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
-      .then((d: { elements?: OverpassEl[] }) => {
-        const seen = new Set<string>()
-        const list: Suggestion[] = []
-        for (const el of d.elements ?? []) {
-          const name = el.tags?.name
-          const pLat = el.lat ?? el.center?.lat
-          const pLng = el.lon ?? el.center?.lon
-          if (!name || pLat == null || pLng == null) continue
-          if (seen.has(name.toLowerCase())) continue
-          seen.add(name.toLowerCase())
-          const category = el.tags?.amenity ?? el.tags?.shop ?? el.tags?.leisure ?? el.tags?.tourism ?? 'place'
-          list.push({
-            key: `${el.type}/${el.id}`,
-            name,
-            category: category.replace(/_/g, ' '),
-            lat: pLat,
-            lng: pLng,
-            dist: distanceM(lat, lng, pLat, pLng),
-          })
-        }
-        list.sort((x, y) => x.dist - y.dist)
-        setSuggestions(list.slice(0, 8))
-      })
-      .catch(() => { /* Overpass can be slow/limited — degrade to just "my location" */ })
-
-    await Promise.allSettled([reverse, overpass])
+    const [reverse, places] = await Promise.all([
+      reverseGeocode(lat, lng),
+      nearbyPlaces(lat, lng),
+    ])
+    setAddress(formatAddress(reverse, 2))
+    setSuggestions(places)
     setLoadingSuggestions(false)
   }
 
@@ -197,7 +110,7 @@ export default function QuickAddSheet({
   const targetLat = chosenSuggestion?.lat ?? coords?.lat ?? null
   const targetLng = chosenSuggestion?.lng ?? coords?.lng ?? null
 
-  const chooseSuggestion = (s: Suggestion) => {
+  const chooseSuggestion = (s: NearbyPlace) => {
     setChosenKey(s.key)
     setTitle(s.name) // pre-fill the title with the place name
     titleRef.current?.focus()
@@ -347,7 +260,7 @@ export default function QuickAddSheet({
                           <MapPin className={`h-4 w-4 shrink-0 ${active ? 'text-indigo-400' : 'text-gray-500'}`} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-white">{s.name}</p>
-                            <p className="truncate text-xs capitalize text-gray-500">{s.category} · {fmtDist(s.dist)}</p>
+                            <p className="truncate text-xs capitalize text-gray-500">{s.category} · {formatDistance(s.dist)}</p>
                           </div>
                           {active && <Check className="h-4 w-4 shrink-0 text-indigo-400" />}
                         </button>

@@ -62,8 +62,9 @@ components/
 lib/
   supabase.ts               # Supabase client (validates env vars at startup)
   types.ts                  # Shared TypeScript types (Community, Pin, etc.)
-  utils.ts                  # Shared helpers: timeAgo, avatarColor, formatCount
-  session.ts                # Anonymous session ID for voting (localStorage)
+  utils.ts                  # Shared helpers: timeAgo, formatEventDate, avatarColor, formatCount, canUserPinInCommunity
+  geo.ts                    # OSM geocoding: reverseGeocode, formatAddress, nearbyPlaces (Overpass), distanceMeters
+  session.ts                # Anonymous session ID (legacy; voting is now auth-based)
 
 supabase/
   schema-current.sql                     # ← USE THIS for a fresh Supabase project (single file, full state)
@@ -266,4 +267,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **Tag filtering** — filter chips in `CommunityPinsPanel` narrow the map + list to pins carrying the selected community tags (`selectedTagIds`; pins carry `tag_ids` from the `pin_tags` join)
 - **Shareable pin links** — `/?pin=<id>` opens + flies to a pin on load; "Share" button in the detail modal copies the link
 - **Quick add** — the mobile FAB opens `QuickAddSheet`: grabs GPS, reverse-geocodes the address (Nominatim) and lists nearby named POIs (Overpass API) so you can tap the bar/cafe you're standing in. Pre-fills title from the chosen place; defaults the community to the focused/last-used one (`lastCommunityId` in localStorage); "More options" hands off to the full `AddPinModal`
+- **Community pin search** — `CommunityPinsPanel` shows a search box (once a community has >5 pins) that filters the list by title/description, composing with the tag filter
 - **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

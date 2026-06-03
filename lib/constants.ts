@@ -38,21 +38,9 @@ export const LIMITS = {
 
 // ── Site admin ────────────────────────────────────────────────────────────────
 
-/** The one user who can delete any community regardless of ownership. */
+/** The one user who can delete any community regardless of ownership.
+ *  Must also exist in the `site_admins` table for RLS to actually grant it. */
 export const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID ?? ''
 
-// ── Z-index ladder ────────────────────────────────────────────────────────────
-// Leaflet's internal maximum is ~1000.
-// Use these VALUES when you need to reference them in JS (e.g. inline styles).
-// For Tailwind arbitrary classes keep the literal: z-[1001], z-[1002], etc.
-
-export const Z_INDEX = {
-  /** Hamburger button, LocationSearch, modal backdrops — above Leaflet */
-  mapOverlay: 1001,
-  /** Sidebar drawer — above the backdrop */
-  sidebar: 1002,
-  /** CreateCommunityModal / AuthModal / PinDetailModal overlays */
-  modal: 1000,
-  /** CommunitySettingsModal — needs to sit above other modals */
-  settingsModal: 2000,
-} as const
+// Z-index layering is documented in CLAUDE.md (map controls 1100 → sidebar 1400).
+// Components use literal Tailwind classes (z-[1100] …) — no shared JS constant.

@@ -29,6 +29,24 @@ export function formatEventDate(start: string, end?: string | null): string {
   return `${datePart} · ${startTime}`
 }
 
+// ── Permissions ───────────────────────────────────────────────────────────────
+
+import type { Community } from './types'
+
+/** Client-side mirror of the who_can_pin RLS check (the DB is the source of truth). */
+export function canUserPinInCommunity(
+  community: Community,
+  userId: string | null,
+  subscribedIds: Set<string>,
+  moderatedIds: Set<string>,
+): boolean {
+  if (community.who_can_pin === 'anyone') return true
+  if (!userId) return false // anonymous users can only pin in 'anyone' communities
+  if (community.who_can_pin === 'subscribers') return subscribedIds.has(community.id)
+  if (community.who_can_pin === 'mods') return moderatedIds.has(community.id)
+  return true
+}
+
 // ── Number formatting ─────────────────────────────────────────────────────────
 
 export function formatCount(n: number): string {

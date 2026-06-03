@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X, Loader2, MapPin, LocateFixed, Check, Plus, Zap, ChevronRight, Lock,
+  HelpCircle, Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Community } from '@/lib/types'
@@ -10,6 +11,7 @@ import { canUserPinInCommunity } from '@/lib/utils'
 import { reverseGeocode, formatAddress, nearbyPlaces, formatDistance, type NearbyPlace } from '@/lib/geo'
 
 const LAST_COMMUNITY_KEY = 'lastCommunityId'
+const HELP_SEEN_KEY = 'quickAddHelpSeen'
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -61,6 +63,16 @@ export default function QuickAddSheet({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
+
+  // How-it-works explainer — auto-shown the first time, re-openable via the ? button
+  const [showHelp, setShowHelp] = useState(false)
+  useEffect(() => {
+    if (localStorage.getItem(HELP_SEEN_KEY) !== '1') setShowHelp(true)
+  }, [])
+  const dismissHelp = () => {
+    localStorage.setItem(HELP_SEEN_KEY, '1')
+    setShowHelp(false)
+  }
 
   const selectedCommunity = communities.find((c) => c.id === communityId)
 
@@ -165,11 +177,57 @@ export default function QuickAddSheet({
             <Zap className="h-4 w-4 text-indigo-400" />
             <h2 className="font-semibold text-white">Quick add</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-800 hover:text-white">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowHelp(true)}
+              title="How quick-add works"
+              aria-label="How quick-add works"
+              className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-800 hover:text-indigo-400"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+            <button onClick={onClose} className="rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-800 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
+        {/* How-it-works explainer */}
+        {showHelp ? (
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              <h3 className="text-base font-semibold text-white">How quick-add works</h3>
+            </div>
+            <ol className="space-y-3">
+              {[
+                { icon: <LocateFixed className="h-4 w-4" />, t: 'We find where you are', d: 'Quick-add uses your device location to start from your spot on the map.' },
+                { icon: <MapPin className="h-4 w-4" />, t: 'Pick the place you’re at', d: 'We suggest named places within ~70m — tap the bar, café, or shop. Or choose “My exact location” to drop on your precise GPS point.' },
+                { icon: <Zap className="h-4 w-4" />, t: 'Confirm community + title', d: 'It defaults to your last-used community and pre-fills the title from the place you picked. Tweak either if you like.' },
+                { icon: <Plus className="h-4 w-4" />, t: 'Tap Add — done', d: 'Need photos, an event, or a link? Use “More options” to open the full form, pre-filled with everything you chose.' },
+              ].map((step, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-300">
+                    {step.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white">{step.t}</p>
+                    <p className="text-xs leading-relaxed text-gray-500">{step.d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-4 text-xs text-gray-600">
+              Tip: location works best outdoors / on mobile. You can always drop a pin by tapping the map instead.
+            </p>
+            <button
+              onClick={dismissHelp}
+              className="mt-5 w-full rounded-xl bg-indigo-600 py-3 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+            >
+              Got it
+            </button>
+          </div>
+        ) : (
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* No pinnable communities */}
           {pinnable.length === 0 ? (
@@ -293,9 +351,10 @@ export default function QuickAddSheet({
             </>
           )}
         </div>
+        )}
 
         {/* Footer */}
-        {pinnable.length > 0 && (
+        {!showHelp && pinnable.length > 0 && (
           <div className="shrink-0 border-t border-gray-800 px-5 py-4">
             <button
               onClick={handleSubmit}

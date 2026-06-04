@@ -246,6 +246,19 @@ CREATE TABLE IF NOT EXISTS public.site_admins (
 
 ALTER TABLE site_admins ENABLE ROW LEVEL SECURITY;
 
+-- ── saved_pins (private bookmarks) ────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.saved_pins (
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  pin_id     UUID        NOT NULL REFERENCES pins(id)       ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, pin_id)
+);
+
+CREATE INDEX IF NOT EXISTS saved_pins_user_idx ON saved_pins (user_id);
+
+ALTER TABLE saved_pins ENABLE ROW LEVEL SECURITY;
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- SECTION 2 — SHARED HELPER FUNCTIONS
@@ -465,6 +478,11 @@ CREATE POLICY "rsvps_delete_own"  ON event_rsvps FOR DELETE USING (auth.uid() = 
 CREATE POLICY "follows_select_all" ON follows FOR SELECT USING (true);
 CREATE POLICY "follows_insert_own" ON follows FOR INSERT WITH CHECK (auth.uid() = follower_id);
 CREATE POLICY "follows_delete_own" ON follows FOR DELETE USING (auth.uid() = follower_id);
+
+-- saved_pins (private bookmarks; own rows only)
+CREATE POLICY "saved_pins_select_own" ON saved_pins FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "saved_pins_insert_own" ON saved_pins FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "saved_pins_delete_own" ON saved_pins FOR DELETE USING (auth.uid() = user_id);
 
 
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -94,6 +94,7 @@ supabase/
   22-security-hardening.sql               # XSS CHECK constraints + SECURITY DEFINER search_path
   23-abuse-and-admin-hardening.sql        # rate limits, auth-based votes, real site-admin RLS
   24-pin-links-and-edit.sql               # pins.url + update_pin() editor RPC
+  25-saved-pins.sql                       # saved_pins (private bookmarks) + RLS
   # Superseded — do not run:
   schema.sql
   auth-migration.sql
@@ -119,6 +120,7 @@ supabase/
 | `pin_photos` | Photo uploads linked to pins (stored in `pin-photos` Storage bucket) |
 | `event_rsvps` | "Going" RSVPs for event pins (one per user per pin) |
 | `follows` | User social graph: follower_id → followee_id (public, self-managed) |
+| `saved_pins` | Private per-user bookmarks (user_id, pin_id); RLS own-rows-only |
 
 Key RPCs:
 - `vote_on_pin(p_pin_id, p_session_id, p_value)` — SECURITY DEFINER, handles toggle/switch/new votes
@@ -268,4 +270,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **Shareable pin links** — `/?pin=<id>` opens + flies to a pin on load; "Share" button in the detail modal copies the link
 - **Quick add** — the mobile FAB opens `QuickAddSheet`: grabs GPS, reverse-geocodes the address (Nominatim) and lists nearby named POIs (Overpass API) so you can tap the bar/cafe you're standing in. Pre-fills title from the chosen place; defaults the community to the focused/last-used one (`lastCommunityId` in localStorage); "More options" hands off to the full `AddPinModal`. A "how it works" explainer auto-shows on first use (`quickAddHelpSeen` in localStorage) and is re-openable via the header **?** button
 - **Community pin search** — `CommunityPinsPanel` shows a search box (once a community has >5 pins) that filters the list by title/description, composing with the tag filter
+- **Saved pins** — private per-user bookmarks spanning any community; Save toggle in the pin detail modal, a "Saved" global filter in the sidebar (map filters to saved pins), tracked as `savedPinIds` in `app/page.tsx`
 - **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

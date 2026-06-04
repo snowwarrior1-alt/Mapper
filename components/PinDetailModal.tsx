@@ -5,7 +5,7 @@ import {
   X, ThumbsUp, ThumbsDown, Clock, MapPin, Navigation, ExternalLink, Trash2,
   Timer, MessageSquare, Send, ChevronLeft, ChevronRight,
   ImageOff, Calendar, Users, Loader2, Pencil, Check, UserPlus, UserCheck,
-  Link2, Share2,
+  Link2, Share2, Bookmark, BookmarkCheck,
 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
@@ -36,6 +36,10 @@ interface PinDetailModalProps {
   followedUserIds?: Set<string>
   /** Toggle following the given user */
   onToggleFollow?: (userId: string) => void
+  /** Whether the current user has saved this pin */
+  isSaved?: boolean
+  /** Toggle saving this pin to the user's bookmarks */
+  onToggleSave?: (pinId: string) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -53,6 +57,8 @@ export default function PinDetailModal({
   onGoToPin,
   followedUserIds,
   onToggleFollow,
+  isSaved,
+  onToggleSave,
 }: PinDetailModalProps) {
   // ── Voting ────────────────────────────────────────────────────────────────
   const [userVote, setUserVote] = useState<number>(0)
@@ -443,6 +449,19 @@ export default function PinDetailModal({
             </span>
           </div>
           <div className="flex items-center gap-1">
+            {/* Save / bookmark */}
+            {onToggleSave && (
+              <button
+                onClick={() => onToggleSave(pin.id)}
+                title={isSaved ? 'Saved — tap to remove' : 'Save pin'}
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+                  isSaved ? 'text-indigo-400' : 'text-gray-500 hover:bg-gray-800 hover:text-indigo-400'
+                }`}
+              >
+                {isSaved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
+            )}
             {/* Share / copy link — available to everyone */}
             <button
               onClick={handleCopyLink}

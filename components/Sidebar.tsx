@@ -28,6 +28,8 @@ interface SidebarProps {
   pins: Pin[]
   selectedCommunity: string | null
   showSubscribedOnly: boolean
+  showSavedOnly: boolean
+  savedCount: number
   subscribedIds: Set<string>
   ownedCommunityIds: Set<string>
   modCommunityIds: Set<string>
@@ -43,6 +45,7 @@ interface SidebarProps {
   onTabChange: (tab: 'communities' | 'feed') => void
   onSelectCommunity: (id: string | null) => void
   onShowSubscribed: () => void
+  onShowSaved: () => void
   onToggleSubscription: (id: string) => void
   onOpenSettings: (id: string) => void
   onAddPin: (communityId: string) => void
@@ -68,6 +71,8 @@ export default function Sidebar({
   pins,
   selectedCommunity,
   showSubscribedOnly,
+  showSavedOnly,
+  savedCount,
   subscribedIds,
   ownedCommunityIds,
   modCommunityIds,
@@ -80,6 +85,7 @@ export default function Sidebar({
   onTabChange,
   onSelectCommunity,
   onShowSubscribed,
+  onShowSaved,
   onToggleSubscription,
   onOpenSettings,
   onAddPin,
@@ -542,7 +548,7 @@ export default function Sidebar({
           <button
             onClick={() => { setGroupPicker(null); onSelectCommunity(null) }}
             className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-              !selectedCommunity && !showSubscribedOnly
+              !selectedCommunity && !showSubscribedOnly && !showSavedOnly
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-400 hover:bg-gray-800 hover:text-white'
             }`}
@@ -550,11 +556,32 @@ export default function Sidebar({
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-700 text-sm">🌍</span>
             <span className="flex-1 text-sm font-medium">All Communities</span>
             <span className={`rounded-full px-2 py-0.5 text-xs ${
-              !selectedCommunity && !showSubscribedOnly ? 'bg-indigo-700 text-indigo-200' : 'bg-gray-800 text-gray-500'
+              !selectedCommunity && !showSubscribedOnly && !showSavedOnly ? 'bg-indigo-700 text-indigo-200' : 'bg-gray-800 text-gray-500'
             }`}>
               {pins.length}
             </span>
           </button>
+
+          {user && savedCount > 0 && (
+            <button
+              onClick={() => { setGroupPicker(null); onShowSaved() }}
+              className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                showSavedOnly
+                  ? 'bg-indigo-500/20 text-indigo-300'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              }`}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
+                <BookmarkCheck className="h-4 w-4" />
+              </span>
+              <span className="flex-1 text-sm font-medium">Saved</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs ${
+                showSavedOnly ? 'bg-indigo-500/20 text-indigo-300' : 'bg-gray-800 text-gray-500'
+              }`}>
+                {savedCount}
+              </span>
+            </button>
+          )}
 
           {user && subscribedIds.size > 0 && (
             <button

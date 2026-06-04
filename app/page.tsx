@@ -40,6 +40,7 @@ export default function Home() {
   const [pins, setPins] = useState<Pin[]>([])
   const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null)
   const [showSubscribedOnly, setShowSubscribedOnly] = useState(false)
+  const [showSavedOnly, setShowSavedOnly] = useState(false)
   const [pendingLatLng, setPendingLatLng] = useState<[number, number] | null>(null)
   const [pendingCommunityOverride, setPendingCommunityOverride] = useState<string | null>(null)
   const [pendingPinTitle, setPendingPinTitle] = useState<string | null>(null)
@@ -52,6 +53,8 @@ export default function Home() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   // User IDs the current user follows
   const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
+  // Pin IDs the current user has saved (private bookmarks)
+  const [savedPinIds, setSavedPinIds] = useState<Set<string>>(new Set())
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -161,6 +164,15 @@ export default function Home() {
     if (data) setFollowedUserIds(new Set(data.map((f) => f.followee_id)))
   }, [user])
 
+  const fetchSaved = useCallback(async () => {
+    if (!user) { setSavedPinIds(new Set()); return }
+    const { data } = await supabase
+      .from('saved_pins')
+      .select('pin_id')
+      .eq('user_id', user.id)
+    if (data) setSavedPinIds(new Set(data.map((s) => s.pin_id)))
+  }, [user])
+
   const fetchMyUsername = useCallback(async () => {
     if (!user) { setMyUsername(null); return }
     const { data } = await supabase
@@ -197,6 +209,7 @@ export default function Home() {
   useEffect(() => { fetchPendingInvites() }, [fetchPendingInvites])
   useEffect(() => { fetchGroups() }, [fetchGroups])
   useEffect(() => { fetchFollowing() }, [fetchFollowing])
+  useEffect(() => { fetchSaved() }, [fetchSaved])
   useEffect(() => { fetchMyUsername() }, [fetchMyUsername])
 
   // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
@@ -204,6 +217,7 @@ export default function Home() {
     userChoseFilter.current = false
     if (!user) {
       setShowSubscribedOnly(false)
+      setShowSavedOnly(false)
       setSelectedCommunity(null)
       setGroups([])
       setCommunityGroupMap(new Map())
@@ -218,6 +232,11 @@ export default function Home() {
       setSelectedCommunity(null)
     }
   }, [user, subscribedIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Leaving the Saved view automatically once the last save is removed
+  useEffect(() => {
+    if (showSavedOnly && savedPinIds.size === 0) setShowSavedOnly(false)
+  }, [showSavedOnly, savedPinIds])
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const fetchCommunities = useCallback(async () => {
@@ -292,6 +311,7 @@ export default function Home() {
     userChoseFilter.current = true
     setSelectedCommunity(id)
     setShowSubscribedOnly(false)
+    setShowSavedOnly(false)
     setSelectedTagIds(new Set()) // tags are community-scoped — reset on switch
   }
 
@@ -299,12 +319,22 @@ export default function Home() {
     userChoseFilter.current = true
     setSelectedCommunity(null)
     setShowSubscribedOnly(true)
+    setShowSavedOnly(false)
+    setSelectedTagIds(new Set())
+  }
+
+  const handleShowSaved = () => {
+    userChoseFilter.current = true
+    setSelectedCommunity(null)
+    setShowSubscribedOnly(false)
+    setShowSavedOnly(true)
     setSelectedTagIds(new Set())
   }
 
   const filteredPins = useMemo(() => {
     let result: Pin[]
     if (selectedCommunity) result = pins.filter((p) => p.community_id === selectedCommunity)
+    else if (showSavedOnly) result = pins.filter((p) => savedPinIds.has(p.id))
     else if (showSubscribedOnly && subscribedIds.size > 0)
       result = pins.filter((p) => subscribedIds.has(p.community_id))
     else result = pins
@@ -317,7 +347,7 @@ export default function Home() {
       )
     }
     return result
-  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, selectedTagIds])
+  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, showSavedOnly, savedPinIds, selectedTagIds])
 
   const toggleTagFilter = (tagId: string) => {
     setSelectedTagIds((prev) => {
@@ -413,6 +443,17 @@ export default function Home() {
       await supabase
         .from('follows')
         .insert({ follower_id: user.id, followee_id: targetUserId })
+    }
+  }
+
+  const handleToggleSave = async (pinId: string) => {
+    if (!user) { setShowAuthModal(true); return }
+    if (savedPinIds.has(pinId)) {
+      setSavedPinIds((prev) => { const n = new Set(prev); n.delete(pinId); return n })
+      await supabase.from('saved_pins').delete().eq('user_id', user.id).eq('pin_id', pinId)
+    } else {
+      setSavedPinIds((prev) => new Set([...prev, pinId]))
+      await supabase.from('saved_pins').insert({ user_id: user.id, pin_id: pinId })
     }
   }
 
@@ -553,11 +594,14 @@ export default function Home() {
         pins={pins}
         selectedCommunity={selectedCommunity}
         showSubscribedOnly={showSubscribedOnly}
+        showSavedOnly={showSavedOnly}
+        savedCount={savedPinIds.size}
         subscribedIds={subscribedIds}
         ownedCommunityIds={ownedCommunityIds}
         modCommunityIds={modCommunityIds}
         onSelectCommunity={handleSelectCommunity}
         onShowSubscribed={handleShowSubscribed}
+        onShowSaved={handleShowSaved}
         onToggleSubscription={handleToggleSubscription}
         onOpenSettings={setCommunitySettingsId}
         onAddPin={handleAddPinForCommunity}
@@ -747,6 +791,8 @@ export default function Home() {
             }}
             followedUserIds={followedUserIds}
             onToggleFollow={handleToggleFollow}
+            isSaved={savedPinIds.has(selectedPin.id)}
+            onToggleSave={handleToggleSave}
           />
         )}
 

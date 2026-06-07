@@ -96,6 +96,7 @@ supabase/
   24-pin-links-and-edit.sql               # pins.url + update_pin() editor RPC
   25-saved-pins.sql                       # saved_pins (private bookmarks) + RLS
   26-harden-pin-insert.sql                # force vote_count=0 + policy-derived expires_at on insert
+  27-collections.sql                      # collections + collection_pins (named lists) + RLS
   # Superseded — do not run:
   schema.sql
   auth-migration.sql
@@ -122,6 +123,8 @@ supabase/
 | `event_rsvps` | "Going" RSVPs for event pins (one per user per pin) |
 | `follows` | User social graph: follower_id → followee_id (public, self-managed) |
 | `saved_pins` | Private per-user bookmarks (user_id, pin_id); RLS own-rows-only |
+| `collections` | User-named lists; RLS own-rows-only |
+| `collection_pins` | Membership: a pin in a collection (a pin can be in many) |
 
 Key RPCs:
 - `vote_on_pin(p_pin_id, p_session_id, p_value)` — SECURITY DEFINER, handles toggle/switch/new votes
@@ -272,4 +275,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **Quick add** — the mobile FAB opens `QuickAddSheet`: grabs GPS, reverse-geocodes the address (Nominatim) and lists nearby named POIs (Overpass API) so you can tap the bar/cafe you're standing in. Pre-fills title from the chosen place; defaults the community to the focused/last-used one (`lastCommunityId` in localStorage); "More options" hands off to the full `AddPinModal`. A "how it works" explainer auto-shows on first use (`quickAddHelpSeen` in localStorage) and is re-openable via the header **?** button
 - **Community pin search** — `CommunityPinsPanel` shows a search box (once a community has >5 pins) that filters the list by title/description, composing with the tag filter
 - **Saved pins** — private per-user bookmarks spanning any community; Save toggle in the pin detail modal, a "Saved" global filter in the sidebar (map filters to saved pins), tracked as `savedPinIds` in `app/page.tsx`
+- **Named collections** — user-curated lists (`collections` + `collection_pins`); "Lists" button in the pin detail modal adds/removes a pin and creates new lists; sidebar "Collections" section lists/creates/renames/deletes them and filters the map to a list's pins
 - **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

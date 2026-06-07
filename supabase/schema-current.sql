@@ -259,6 +259,30 @@ CREATE INDEX IF NOT EXISTS saved_pins_user_idx ON saved_pins (user_id);
 
 ALTER TABLE saved_pins ENABLE ROW LEVEL SECURITY;
 
+-- ── collections + collection_pins (named lists of pins) ───────────────────────
+
+CREATE TABLE IF NOT EXISTS public.collections (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT        NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 50),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS collections_user_idx ON collections (user_id);
+
+ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.collection_pins (
+  collection_id UUID        NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  pin_id        UUID        NOT NULL REFERENCES pins(id)        ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (collection_id, pin_id)
+);
+
+CREATE INDEX IF NOT EXISTS collection_pins_pin_idx ON collection_pins (pin_id);
+
+ALTER TABLE collection_pins ENABLE ROW LEVEL SECURITY;
+
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- SECTION 2 — SHARED HELPER FUNCTIONS
@@ -483,6 +507,20 @@ CREATE POLICY "follows_delete_own" ON follows FOR DELETE USING (auth.uid() = fol
 CREATE POLICY "saved_pins_select_own" ON saved_pins FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "saved_pins_insert_own" ON saved_pins FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "saved_pins_delete_own" ON saved_pins FOR DELETE USING (auth.uid() = user_id);
+
+-- collections (private named lists; own rows only)
+CREATE POLICY "collections_select_own" ON collections FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "collections_insert_own" ON collections FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "collections_update_own" ON collections FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "collections_delete_own" ON collections FOR DELETE USING (auth.uid() = user_id);
+
+-- collection_pins (membership; only for collections you own)
+CREATE POLICY "collection_pins_select_own" ON collection_pins FOR SELECT
+  USING (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
+CREATE POLICY "collection_pins_insert_own" ON collection_pins FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
+CREATE POLICY "collection_pins_delete_own" ON collection_pins FOR DELETE
+  USING (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
 
 
 -- ─────────────────────────────────────────────────────────────────────────────

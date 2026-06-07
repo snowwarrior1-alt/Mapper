@@ -92,6 +92,14 @@ export interface Follow {
   created_at: string
 }
 
+/** A user-defined named list of pins (spans communities) */
+export interface Collection {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
 export interface Vote {
   id: string
   pin_id: string

@@ -5,12 +5,12 @@ import {
   X, ThumbsUp, ThumbsDown, Clock, MapPin, Navigation, ExternalLink, Trash2,
   Timer, MessageSquare, Send, ChevronLeft, ChevronRight,
   ImageOff, Calendar, Users, Loader2, Pencil, Check, UserPlus, UserCheck,
-  Link2, Share2, Bookmark, BookmarkCheck,
+  Link2, Share2, Bookmark, BookmarkCheck, FolderPlus, Plus,
 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Pin, Comment, PinPhoto, CommunityTag } from '@/lib/types'
+import { Pin, Comment, PinPhoto, CommunityTag, Collection } from '@/lib/types'
 import { getSessionId } from '@/lib/session'
 import { timeAgo, timeUntil, formatEventDate, voteColorClass, formatVoteCount } from '@/lib/utils'
 import Avatar from '@/components/Avatar'
@@ -40,6 +40,10 @@ interface PinDetailModalProps {
   isSaved?: boolean
   /** Toggle saving this pin to the user's bookmarks */
   onToggleSave?: (pinId: string) => void
+  /** The user's named collections (for "add to list") */
+  collections?: Collection[]
+  /** Create a new collection; resolves to the created row */
+  onCreateCollection?: (name: string) => Promise<Collection | null>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -59,6 +63,8 @@ export default function PinDetailModal({
   onToggleFollow,
   isSaved,
   onToggleSave,
+  collections,
+  onCreateCollection,
 }: PinDetailModalProps) {
   // ── Voting ────────────────────────────────────────────────────────────────
   const [userVote, setUserVote] = useState<number>(0)
@@ -121,6 +127,57 @@ export default function PinDetailModal({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch { /* clipboard unavailable — ignore */ }
+  }
+
+  // ── Collections ("add to list") ──────────────────────────────────────────────
+  const [showCollections, setShowCollections] = useState(false)
+  const [memberCollIds, setMemberCollIds] = useState<Set<string>>(new Set())
+  const [collLoading, setCollLoading] = useState(false)
+  const [newCollName, setNewCollName] = useState('')
+  const [collBusy, setCollBusy] = useState(false)
+
+  useEffect(() => {
+    setShowCollections(false)
+    setMemberCollIds(new Set())
+    setNewCollName('')
+  }, [pin.id])
+
+  const openCollections = async () => {
+    if (!user) { onSignIn?.(); return }
+    const willOpen = !showCollections
+    setShowCollections(willOpen)
+    if (willOpen) {
+      setCollLoading(true)
+      const { data } = await supabase.from('collection_pins').select('collection_id').eq('pin_id', pin.id)
+      setMemberCollIds(new Set((data ?? []).map((r) => r.collection_id)))
+      setCollLoading(false)
+    }
+  }
+
+  const toggleCollection = async (collectionId: string) => {
+    if (collBusy) return
+    setCollBusy(true)
+    if (memberCollIds.has(collectionId)) {
+      setMemberCollIds((prev) => { const n = new Set(prev); n.delete(collectionId); return n })
+      await supabase.from('collection_pins').delete().eq('collection_id', collectionId).eq('pin_id', pin.id)
+    } else {
+      setMemberCollIds((prev) => new Set([...prev, collectionId]))
+      await supabase.from('collection_pins').insert({ collection_id: collectionId, pin_id: pin.id })
+    }
+    setCollBusy(false)
+  }
+
+  const createAndAddCollection = async () => {
+    const name = newCollName.trim()
+    if (!name || !onCreateCollection || collBusy) return
+    setCollBusy(true)
+    const col = await onCreateCollection(name)
+    if (col) {
+      await supabase.from('collection_pins').insert({ collection_id: col.id, pin_id: pin.id })
+      setMemberCollIds((prev) => new Set([...prev, col.id]))
+      setNewCollName('')
+    }
+    setCollBusy(false)
   }
 
   // ── RSVP (events) ─────────────────────────────────────────────────────────
@@ -462,6 +519,19 @@ export default function PinDetailModal({
                 <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
               </button>
             )}
+            {/* Add to a named list */}
+            {onCreateCollection && (
+              <button
+                onClick={openCollections}
+                title="Add to a list"
+                className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${
+                  showCollections ? 'text-indigo-400' : 'text-gray-500 hover:bg-gray-800 hover:text-indigo-400'
+                }`}
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Lists</span>
+              </button>
+            )}
             {/* Share / copy link — available to everyone */}
             <button
               onClick={handleCopyLink}
@@ -517,6 +587,57 @@ export default function PinDetailModal({
             </button>
           </div>
         </div>
+
+        {/* ── Collections picker (toggled by the Lists button) ──────────────── */}
+        {showCollections && (
+          <div className="shrink-0 border-b border-gray-800 bg-gray-900 p-4">
+            <p className="mb-2 text-xs font-medium text-gray-400">Add to a list</p>
+            {collLoading ? (
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {(collections ?? []).map((col) => {
+                  const inList = memberCollIds.has(col.id)
+                  return (
+                    <button
+                      key={col.id}
+                      onClick={() => toggleCollection(col.id)}
+                      disabled={collBusy}
+                      className="flex w-full items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-800 disabled:opacity-60"
+                    >
+                      <span className={`flex h-4 w-4 items-center justify-center rounded border ${
+                        inList ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-gray-600'
+                      }`}>
+                        {inList && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="flex-1 truncate text-gray-200">{col.name}</span>
+                    </button>
+                  )
+                })}
+                {/* New list inline */}
+                <div className="flex gap-2 pt-1">
+                  <input
+                    value={newCollName}
+                    onChange={(e) => setNewCollName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') createAndAddCollection() }}
+                    maxLength={50}
+                    placeholder="New list…"
+                    className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={createAndAddCollection}
+                    disabled={!newCollName.trim() || collBusy}
+                    className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Photo gallery ─────────────────────────────────────────────── */}
         {photos.length > 0 && (

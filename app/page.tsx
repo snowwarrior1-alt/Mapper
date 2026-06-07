@@ -5,7 +5,7 @@ import { Menu, Plus, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
-import { Community, Pin, PendingInvite, CommunityGroup } from '@/lib/types'
+import { Community, Pin, PendingInvite, CommunityGroup, Collection } from '@/lib/types'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
@@ -55,6 +55,10 @@ export default function Home() {
   const [followedUserIds, setFollowedUserIds] = useState<Set<string>>(new Set())
   // Pin IDs the current user has saved (private bookmarks)
   const [savedPinIds, setSavedPinIds] = useState<Set<string>>(new Set())
+  // Named collections + the currently-filtered collection
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
+  const [activeCollectionPinIds, setActiveCollectionPinIds] = useState<Set<string>>(new Set())
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -173,6 +177,16 @@ export default function Home() {
     if (data) setSavedPinIds(new Set(data.map((s) => s.pin_id)))
   }, [user])
 
+  const fetchCollections = useCallback(async () => {
+    if (!user) { setCollections([]); return }
+    const { data } = await supabase
+      .from('collections')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at')
+    if (data) setCollections(data as Collection[])
+  }, [user])
+
   const fetchMyUsername = useCallback(async () => {
     if (!user) { setMyUsername(null); return }
     const { data } = await supabase
@@ -210,6 +224,7 @@ export default function Home() {
   useEffect(() => { fetchGroups() }, [fetchGroups])
   useEffect(() => { fetchFollowing() }, [fetchFollowing])
   useEffect(() => { fetchSaved() }, [fetchSaved])
+  useEffect(() => { fetchCollections() }, [fetchCollections])
   useEffect(() => { fetchMyUsername() }, [fetchMyUsername])
 
   // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
@@ -218,6 +233,7 @@ export default function Home() {
     if (!user) {
       setShowSubscribedOnly(false)
       setShowSavedOnly(false)
+      setActiveCollectionId(null)
       setSelectedCommunity(null)
       setGroups([])
       setCommunityGroupMap(new Map())
@@ -312,6 +328,7 @@ export default function Home() {
     setSelectedCommunity(id)
     setShowSubscribedOnly(false)
     setShowSavedOnly(false)
+    setActiveCollectionId(null)
     setSelectedTagIds(new Set()) // tags are community-scoped — reset on switch
   }
 
@@ -320,6 +337,7 @@ export default function Home() {
     setSelectedCommunity(null)
     setShowSubscribedOnly(true)
     setShowSavedOnly(false)
+    setActiveCollectionId(null)
     setSelectedTagIds(new Set())
   }
 
@@ -328,12 +346,25 @@ export default function Home() {
     setSelectedCommunity(null)
     setShowSubscribedOnly(false)
     setShowSavedOnly(true)
+    setActiveCollectionId(null)
     setSelectedTagIds(new Set())
+  }
+
+  const handleSelectCollection = async (id: string) => {
+    userChoseFilter.current = true
+    setSelectedCommunity(null)
+    setShowSubscribedOnly(false)
+    setShowSavedOnly(false)
+    setSelectedTagIds(new Set())
+    setActiveCollectionId(id)
+    const { data } = await supabase.from('collection_pins').select('pin_id').eq('collection_id', id)
+    setActiveCollectionPinIds(new Set((data ?? []).map((r) => r.pin_id)))
   }
 
   const filteredPins = useMemo(() => {
     let result: Pin[]
     if (selectedCommunity) result = pins.filter((p) => p.community_id === selectedCommunity)
+    else if (activeCollectionId) result = pins.filter((p) => activeCollectionPinIds.has(p.id))
     else if (showSavedOnly) result = pins.filter((p) => savedPinIds.has(p.id))
     else if (showSubscribedOnly && subscribedIds.size > 0)
       result = pins.filter((p) => subscribedIds.has(p.community_id))
@@ -347,7 +378,31 @@ export default function Home() {
       )
     }
     return result
-  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, showSavedOnly, savedPinIds, selectedTagIds])
+  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, showSavedOnly, savedPinIds, activeCollectionId, activeCollectionPinIds, selectedTagIds])
+
+  // ── Collection CRUD ────────────────────────────────────────────────────────
+  const handleCreateCollection = useCallback(async (name: string): Promise<Collection | null> => {
+    if (!user) return null
+    const { data, error } = await supabase
+      .from('collections')
+      .insert({ user_id: user.id, name: name.trim() })
+      .select()
+      .single()
+    if (error || !data) return null
+    setCollections((prev) => [...prev, data as Collection])
+    return data as Collection
+  }, [user])
+
+  const handleRenameCollection = useCallback(async (id: string, name: string) => {
+    await supabase.from('collections').update({ name: name.trim() }).eq('id', id)
+    setCollections((prev) => prev.map((c) => (c.id === id ? { ...c, name: name.trim() } : c)))
+  }, [])
+
+  const handleDeleteCollection = useCallback(async (id: string) => {
+    await supabase.from('collections').delete().eq('id', id)
+    setCollections((prev) => prev.filter((c) => c.id !== id))
+    setActiveCollectionId((cur) => (cur === id ? null : cur))
+  }, [])
 
   const toggleTagFilter = (tagId: string) => {
     setSelectedTagIds((prev) => {
@@ -596,6 +651,12 @@ export default function Home() {
         showSubscribedOnly={showSubscribedOnly}
         showSavedOnly={showSavedOnly}
         savedCount={savedPinIds.size}
+        collections={collections}
+        activeCollectionId={activeCollectionId}
+        onSelectCollection={handleSelectCollection}
+        onCreateCollection={handleCreateCollection}
+        onRenameCollection={handleRenameCollection}
+        onDeleteCollection={handleDeleteCollection}
         subscribedIds={subscribedIds}
         ownedCommunityIds={ownedCommunityIds}
         modCommunityIds={modCommunityIds}
@@ -798,6 +859,8 @@ export default function Home() {
             onToggleFollow={handleToggleFollow}
             isSaved={savedPinIds.has(selectedPin.id)}
             onToggleSave={handleToggleSave}
+            collections={collections}
+            onCreateCollection={handleCreateCollection}
           />
         )}
 

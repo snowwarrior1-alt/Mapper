@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
-import { Community, CommunityGroup, Pin, PendingInvite } from '@/lib/types'
+import { Community, CommunityGroup, Pin, PendingInvite, Collection } from '@/lib/types'
 import Avatar from '@/components/Avatar'
 import ActivityFeed from '@/components/ActivityFeed'
 
@@ -30,6 +30,12 @@ interface SidebarProps {
   showSubscribedOnly: boolean
   showSavedOnly: boolean
   savedCount: number
+  collections: Collection[]
+  activeCollectionId: string | null
+  onSelectCollection: (id: string) => void
+  onCreateCollection: (name: string) => Promise<Collection | null>
+  onRenameCollection: (id: string, name: string) => void
+  onDeleteCollection: (id: string) => void
   subscribedIds: Set<string>
   ownedCommunityIds: Set<string>
   modCommunityIds: Set<string>
@@ -73,6 +79,12 @@ export default function Sidebar({
   showSubscribedOnly,
   showSavedOnly,
   savedCount,
+  collections,
+  activeCollectionId,
+  onSelectCollection,
+  onCreateCollection,
+  onRenameCollection,
+  onDeleteCollection,
   subscribedIds,
   ownedCommunityIds,
   modCommunityIds,
@@ -114,6 +126,25 @@ export default function Sidebar({
   const [newGroupName, setNewGroupName]       = useState('')
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null)
   const [renameValue, setRenameValue]         = useState('')
+  // Collections inline-create / rename
+  const [creatingCollection, setCreatingCollection]     = useState(false)
+  const [newCollectionName, setNewCollectionName]       = useState('')
+  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null)
+  const [collectionRename, setCollectionRename]         = useState('')
+
+  const submitNewCollection = async () => {
+    const name = newCollectionName.trim()
+    setCreatingCollection(false)
+    setNewCollectionName('')
+    if (name) await onCreateCollection(name)
+  }
+  const commitCollectionRename = (id: string) => {
+    const original = collections.find((c) => c.id === id)?.name
+    if (collectionRename.trim() && collectionRename.trim() !== original) {
+      onRenameCollection(id, collectionRename.trim())
+    }
+    setRenamingCollectionId(null)
+  }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
   const countFor    = (id: string) => pins.filter((p) => p.community_id === id).length
@@ -600,6 +631,91 @@ export default function Sidebar({
                 {pins.filter((p) => subscribedIds.has(p.community_id)).length}
               </span>
             </button>
+          )}
+
+          {/* ── Collections ── */}
+          {user && (
+            <div className="mb-1" onClick={(e) => e.stopPropagation()}>
+              {(collections.length > 0 || creatingCollection) && (
+                <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                  Collections
+                </p>
+              )}
+              {collections.map((col) =>
+                renamingCollectionId === col.id ? (
+                  <input
+                    key={col.id}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    value={collectionRename}
+                    onChange={(e) => setCollectionRename(e.target.value)}
+                    onBlur={() => commitCollectionRename(col.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitCollectionRename(col.id)
+                      if (e.key === 'Escape') setRenamingCollectionId(null)
+                    }}
+                    className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none"
+                  />
+                ) : (
+                  <div key={col.id} className="group relative mb-0.5">
+                    <button
+                      onClick={() => onSelectCollection(col.id)}
+                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                        activeCollectionId === col.id
+                          ? 'bg-indigo-500/20 text-indigo-300'
+                          : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-300">
+                        <Bookmark className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="flex-1 truncate text-sm font-medium">{col.name}</span>
+                    </button>
+                    <div className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity md:flex md:group-hover:pointer-events-auto md:group-hover:opacity-100">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setRenamingCollectionId(col.id); setCollectionRename(col.name) }}
+                        title="Rename"
+                        className="rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDeleteCollection(col.id) }}
+                        title="Delete list"
+                        className="rounded p-1 text-gray-500 transition-colors hover:text-red-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+              {creatingCollection ? (
+                <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={newCollectionName}
+                  onChange={(e) => setNewCollectionName(e.target.value)}
+                  onBlur={submitNewCollection}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitNewCollection()
+                    if (e.key === 'Escape') { setCreatingCollection(false); setNewCollectionName('') }
+                  }}
+                  placeholder="List name…"
+                  className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => { setCreatingCollection(true); setNewCollectionName('') }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800">
+                    <Plus className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="flex-1 text-sm font-medium">New list</span>
+                </button>
+              )}
+            </div>
           )}
 
           <div className="my-2 border-t border-gray-800" />

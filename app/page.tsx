@@ -42,6 +42,8 @@ export default function Home() {
   const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null)
   const [showSubscribedOnly, setShowSubscribedOnly] = useState(false)
   const [showSavedOnly, setShowSavedOnly] = useState(false)
+  // Per-community map visibility (device preference; independent of subscribe)
+  const [hiddenCommunityIds, setHiddenCommunityIds] = useState<Set<string>>(new Set())
   const [pendingLatLng, setPendingLatLng] = useState<[number, number] | null>(null)
   const [pendingCommunityOverride, setPendingCommunityOverride] = useState<string | null>(null)
   const [pendingPinTitle, setPendingPinTitle] = useState<string | null>(null)
@@ -83,6 +85,24 @@ export default function Home() {
   const handleMapStyleChange = (style: MapStyle) => {
     setMapStyle(style)
     localStorage.setItem('mapStyle', style)
+  }
+
+  // Load persisted hidden-community set on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('hiddenCommunityIds') ?? '[]')
+      if (Array.isArray(saved)) setHiddenCommunityIds(new Set(saved))
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleToggleCommunityVisibility = (id: string) => {
+    setHiddenCommunityIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      localStorage.setItem('hiddenCommunityIds', JSON.stringify([...next]))
+      return next
+    })
   }
 
   // Community groups (personal folders for organising subscriptions)
@@ -384,12 +404,20 @@ export default function Home() {
 
   const filteredPins = useMemo(() => {
     let result: Pin[]
+    // Explicit selections (a single community, a collection, or saved) show exactly
+    // what was asked for; the per-community visibility toggle only mutes the broad
+    // "All" / "My Subscriptions" aggregate views.
+    const explicit = !!selectedCommunity || !!activeCollectionId || showSavedOnly
     if (selectedCommunity) result = pins.filter((p) => p.community_id === selectedCommunity)
     else if (activeCollectionId) result = pins.filter((p) => activeCollectionPinIds.has(p.id))
     else if (showSavedOnly) result = pins.filter((p) => savedPinIds.has(p.id))
     else if (showSubscribedOnly && subscribedIds.size > 0)
       result = pins.filter((p) => subscribedIds.has(p.community_id))
     else result = pins
+
+    if (!explicit && hiddenCommunityIds.size > 0) {
+      result = result.filter((p) => !hiddenCommunityIds.has(p.community_id))
+    }
 
     // Tag filter (only meaningful inside a selected community) — pin must carry
     // ALL selected tags
@@ -399,7 +427,7 @@ export default function Home() {
       )
     }
     return result
-  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, showSavedOnly, savedPinIds, activeCollectionId, activeCollectionPinIds, selectedTagIds])
+  }, [pins, selectedCommunity, showSubscribedOnly, subscribedIds, showSavedOnly, savedPinIds, activeCollectionId, activeCollectionPinIds, hiddenCommunityIds, selectedTagIds])
 
   // ── Collection CRUD ────────────────────────────────────────────────────────
   const handleCreateCollection = useCallback(async (name: string): Promise<Collection | null> => {
@@ -779,6 +807,8 @@ export default function Home() {
         onSelectRoute={handleSelectRoute}
         onCreateRoute={handleCreateRoute}
         subscribedIds={subscribedIds}
+        hiddenCommunityIds={hiddenCommunityIds}
+        onToggleCommunityVisibility={handleToggleCommunityVisibility}
         ownedCommunityIds={ownedCommunityIds}
         modCommunityIds={modCommunityIds}
         onSelectCommunity={handleSelectCommunity}

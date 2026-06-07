@@ -5,6 +5,7 @@ import {
   Bookmark, BookmarkCheck, Check, ChevronDown, ChevronRight,
   Compass, Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
   Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Newspaper, Route as RouteIcon,
+  Eye, EyeOff,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
@@ -30,6 +31,9 @@ interface SidebarProps {
   showSubscribedOnly: boolean
   showSavedOnly: boolean
   savedCount: number
+  /** Communities whose pins are hidden from the map (device preference) */
+  hiddenCommunityIds: Set<string>
+  onToggleCommunityVisibility: (id: string) => void
   collections: Collection[]
   activeCollectionId: string | null
   onSelectCollection: (id: string) => void
@@ -83,6 +87,8 @@ export default function Sidebar({
   showSubscribedOnly,
   showSavedOnly,
   savedCount,
+  hiddenCommunityIds,
+  onToggleCommunityVisibility,
   collections,
   activeCollectionId,
   onSelectCollection,
@@ -240,6 +246,7 @@ export default function Sidebar({
     const subscribed    = isSubscribed(c.id)
     const owner         = isOwner(c.id)
     const mod           = isMod(c.id)
+    const hidden        = hiddenCommunityIds.has(c.id)
     const currentGroupId= communityGroupMap.get(c.id) ?? null
     const pickerOpen    = groupPicker === c.id
 
@@ -250,7 +257,7 @@ export default function Sidebar({
           onClick={() => { setGroupPicker(null); onSelectCommunity(active ? null : c.id) }}
           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 md:py-2 text-left transition-colors ${
             active ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-          }`}
+          } ${hidden ? 'opacity-45' : ''}`}
         >
           <span
             className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm"
@@ -283,6 +290,13 @@ export default function Sidebar({
 
         {/* ── Mobile action strip (always visible) ── */}
         <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 md:hidden">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
+            title={hidden ? 'Show pins on map' : 'Hide pins from map'}
+            className={`rounded-lg p-2 transition-colors ${hidden ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-400'}`}
+          >
+            {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
           {subscribed && user && (
             <button
               onClick={(e) => {
@@ -324,6 +338,13 @@ export default function Sidebar({
 
         {/* ── Desktop hover actions ── */}
         <div className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity md:flex md:group-hover:pointer-events-auto md:group-hover:opacity-100">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
+            title={hidden ? 'Show pins on map' : 'Hide pins from map'}
+            className={`rounded p-1 transition-colors ${hidden ? 'text-indigo-400 hover:text-indigo-300' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </button>
           {subscribed && user && (
             <button
               onClick={(e) => {

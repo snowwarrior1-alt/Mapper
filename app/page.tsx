@@ -5,7 +5,7 @@ import { Menu, Plus, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
-import { Community, Pin, PendingInvite, CommunityGroup, Collection } from '@/lib/types'
+import { Community, Pin, PendingInvite, CommunityGroup, Collection, Route } from '@/lib/types'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
@@ -16,6 +16,7 @@ import AuthModal from '@/components/AuthModal'
 import CreateCommunityModal from '@/components/CreateCommunityModal'
 import CommunitySettingsModal from '@/components/CommunitySettingsModal'
 import CommunityPinsPanel from '@/components/CommunityPinsPanel'
+import RoutePanel from '@/components/RoutePanel'
 import SearchModal from '@/components/SearchModal'
 import BottomNav from '@/components/BottomNav'
 import MapStyleSwitcher from '@/components/MapStyleSwitcher'
@@ -59,6 +60,11 @@ export default function Home() {
   const [collections, setCollections] = useState<Collection[]>([])
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
   const [activeCollectionPinIds, setActiveCollectionPinIds] = useState<Set<string>>(new Set())
+  // Routes/trails — the open route, its ordered stops, and build mode
+  const [routes, setRoutes] = useState<Route[]>([])
+  const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
+  const [routeStops, setRouteStops] = useState<{ pin: Pin; position: number }[]>([])
+  const [routeBuildMode, setRouteBuildMode] = useState(false)
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -187,6 +193,16 @@ export default function Home() {
     if (data) setCollections(data as Collection[])
   }, [user])
 
+  const fetchRoutes = useCallback(async () => {
+    if (!user) { setRoutes([]); return }
+    const { data } = await supabase
+      .from('routes')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at')
+    if (data) setRoutes(data as Route[])
+  }, [user])
+
   const fetchMyUsername = useCallback(async () => {
     if (!user) { setMyUsername(null); return }
     const { data } = await supabase
@@ -225,6 +241,7 @@ export default function Home() {
   useEffect(() => { fetchFollowing() }, [fetchFollowing])
   useEffect(() => { fetchSaved() }, [fetchSaved])
   useEffect(() => { fetchCollections() }, [fetchCollections])
+  useEffect(() => { fetchRoutes() }, [fetchRoutes])
   useEffect(() => { fetchMyUsername() }, [fetchMyUsername])
 
   // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
@@ -234,6 +251,9 @@ export default function Home() {
       setShowSubscribedOnly(false)
       setShowSavedOnly(false)
       setActiveCollectionId(null)
+      setActiveRouteId(null)
+      setRouteStops([])
+      setRouteBuildMode(false)
       setSelectedCommunity(null)
       setGroups([])
       setCommunityGroupMap(new Map())
@@ -329,6 +349,7 @@ export default function Home() {
     setShowSubscribedOnly(false)
     setShowSavedOnly(false)
     setActiveCollectionId(null)
+    if (id) { setActiveRouteId(null); setRouteStops([]); setRouteBuildMode(false) } // route panel yields the slot
     setSelectedTagIds(new Set()) // tags are community-scoped — reset on switch
   }
 
@@ -404,6 +425,94 @@ export default function Home() {
     setActiveCollectionId((cur) => (cur === id ? null : cur))
   }, [])
 
+  // ── Route CRUD + stop editing ──────────────────────────────────────────────
+  const loadRouteStops = useCallback(async (routeId: string) => {
+    const { data } = await supabase
+      .from('route_pins')
+      .select('position, pin:pins(*, community:communities(*), profile:profiles(username, avatar_url))')
+      .eq('route_id', routeId)
+      .order('position')
+    const stops = (data ?? [])
+      .map((r) => {
+        const row = r as { position: number; pin: Pin | Pin[] }
+        const pin = Array.isArray(row.pin) ? row.pin[0] : row.pin
+        return pin ? { pin, position: row.position } : null
+      })
+      .filter((s): s is { pin: Pin; position: number } => !!s)
+    setRouteStops(stops)
+  }, [])
+
+  const handleSelectRoute = (id: string) => {
+    setSelectedCommunity(null)       // route panel takes the side slot
+    setActiveRouteId(id)
+    setRouteBuildMode(false)
+    loadRouteStops(id)
+  }
+
+  const handleCloseRoute = () => {
+    setActiveRouteId(null)
+    setRouteStops([])
+    setRouteBuildMode(false)
+  }
+
+  const handleCreateRoute = useCallback(async (name: string): Promise<Route | null> => {
+    if (!user) return null
+    const { data, error } = await supabase
+      .from('routes')
+      .insert({ user_id: user.id, name: name.trim() })
+      .select()
+      .single()
+    if (error || !data) return null
+    setRoutes((prev) => [...prev, data as Route])
+    return data as Route
+  }, [user])
+
+  const handleRenameRoute = useCallback(async (id: string, name: string) => {
+    await supabase.from('routes').update({ name: name.trim() }).eq('id', id)
+    setRoutes((prev) => prev.map((r) => (r.id === id ? { ...r, name: name.trim() } : r)))
+  }, [])
+
+  const handleDeleteRoute = useCallback(async (id: string) => {
+    await supabase.from('routes').delete().eq('id', id)
+    setRoutes((prev) => prev.filter((r) => r.id !== id))
+    setActiveRouteId((cur) => {
+      if (cur === id) { setRouteStops([]); setRouteBuildMode(false); return null }
+      return cur
+    })
+  }, [])
+
+  const handleAddPinToRoute = async (pin: Pin) => {
+    if (!activeRouteId) return
+    if (routeStops.some((s) => s.pin.id === pin.id)) return // no duplicates
+    const nextPos = routeStops.length ? Math.max(...routeStops.map((s) => s.position)) + 1 : 0
+    setRouteStops((prev) => [...prev, { pin, position: nextPos }])
+    await supabase.from('route_pins').insert({ route_id: activeRouteId, pin_id: pin.id, position: nextPos })
+  }
+
+  const handleRemoveRouteStop = async (pinId: string) => {
+    if (!activeRouteId) return
+    setRouteStops((prev) => prev.filter((s) => s.pin.id !== pinId))
+    await supabase.from('route_pins').delete().eq('route_id', activeRouteId).eq('pin_id', pinId)
+  }
+
+  const handleMoveRouteStop = async (index: number, dir: -1 | 1) => {
+    if (!activeRouteId) return
+    const j = index + dir
+    if (j < 0 || j >= routeStops.length) return
+    const a = routeStops[index], b = routeStops[j]
+    // Swap positions in the DB and locally
+    const reordered = [...routeStops]
+    reordered[index] = b; reordered[j] = a
+    const posA = a.position, posB = b.position
+    reordered[j] = { ...a, position: posB }
+    reordered[index] = { ...b, position: posA }
+    setRouteStops(reordered.sort((x, y) => x.position - y.position))
+    await Promise.all([
+      supabase.from('route_pins').update({ position: posB }).eq('route_id', activeRouteId).eq('pin_id', a.pin.id),
+      supabase.from('route_pins').update({ position: posA }).eq('route_id', activeRouteId).eq('pin_id', b.pin.id),
+    ])
+  }
+
   const toggleTagFilter = (tagId: string) => {
     setSelectedTagIds((prev) => {
       const next = new Set(prev)
@@ -414,11 +523,15 @@ export default function Home() {
   }
 
   const handleMapClick = (lat: number, lng: number) => {
+    if (routeBuildMode) return // building a route — only pin taps matter
     if (selectedPin) { setSelectedPin(null); return }
     setPendingLatLng([lat, lng])
   }
 
   const handlePinClick = (pin: Pin) => {
+    // In route build mode, tapping a pin appends it to the active route instead
+    // of opening its detail.
+    if (routeBuildMode && activeRouteId) { handleAddPinToRoute(pin); return }
     setPendingLatLng(null)
     setSelectedPin(pin)
   }
@@ -636,11 +749,15 @@ export default function Home() {
   // panelOpen  = the community side panel / bottom sheet (non-blocking on desktop)
   // modalOpen  = a blocking modal/sheet that should own the screen
   // When either is up, the floating map controls hide so nothing overlaps.
-  const panelOpen = !!selectedCommunityObj
+  const panelOpen = !!selectedCommunityObj || !!activeRouteId
   const modalOpen =
     !!pendingLatLng || !!selectedPin || showAuthModal || showSearch ||
     showCreateModal || !!communitySettingsId || showQuickAdd
   const overlayOpen = panelOpen || modalOpen
+
+  // Active route → ordered polyline path for the map
+  const activeRoute = activeRouteId ? routes.find((r) => r.id === activeRouteId) ?? null : null
+  const routePath = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
 
   return (
     <div className="flex h-full overflow-hidden bg-gray-950">
@@ -657,6 +774,10 @@ export default function Home() {
         onCreateCollection={handleCreateCollection}
         onRenameCollection={handleRenameCollection}
         onDeleteCollection={handleDeleteCollection}
+        routes={routes}
+        activeRouteId={activeRouteId}
+        onSelectRoute={handleSelectRoute}
+        onCreateRoute={handleCreateRoute}
         subscribedIds={subscribedIds}
         ownedCommunityIds={ownedCommunityIds}
         modCommunityIds={modCommunityIds}
@@ -762,9 +883,32 @@ export default function Home() {
           onCenterChange={handleCenterChange}
           followedUserIds={followedUserIds}
           mapStyle={mapStyle}
+          routePath={routePath}
+          routeColor={activeRoute?.color}
         />
 
-        {selectedCommunityObj && (
+        {/* Route build-mode banner */}
+        {routeBuildMode && activeRoute && (
+          <div className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 rounded-full border border-indigo-500/40 bg-gray-900/95 px-4 py-2 text-xs font-medium text-indigo-200 shadow-lg backdrop-blur-sm">
+            Tap pins to add to <span className="font-semibold text-white">{activeRoute.name}</span>
+          </div>
+        )}
+
+        {activeRoute && (
+          <RoutePanel
+            route={activeRoute}
+            stops={routeStops}
+            buildMode={routeBuildMode}
+            onToggleBuild={() => setRouteBuildMode((v) => !v)}
+            onClose={handleCloseRoute}
+            onSelectPin={(pin) => { handleFlyTo(pin.lat, pin.lng, 16); setSelectedPin(pin) }}
+            onRemoveStop={handleRemoveRouteStop}
+            onMoveStop={handleMoveRouteStop}
+            onDelete={handleDeleteRoute}
+          />
+        )}
+
+        {selectedCommunityObj && !activeRoute && (
           <CommunityPinsPanel
             community={selectedCommunityObj}
             pins={filteredPins}

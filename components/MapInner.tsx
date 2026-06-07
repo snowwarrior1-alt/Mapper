@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, ZoomControl, useMapEvents, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, ZoomControl, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import { Community, Pin } from '@/lib/types'
 import PinClusterLayer from './PinClusterLayer'
 
@@ -62,6 +62,19 @@ function FlyToController({ target }: { target: FlyToTarget | null }) {
   return null
 }
 
+/** Fits the map to a route's bounds whenever the route path changes. */
+function RouteBoundsController({ path }: { path: [number, number][] | undefined }) {
+  const map = useMap()
+  const sig = path ? path.map((p) => p.join(',')).join('|') : ''
+  useEffect(() => {
+    if (path && path.length >= 2) {
+      map.fitBounds(path, { padding: [60, 60], maxZoom: 16 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig])
+  return null
+}
+
 /** Reports the map center whenever the user finishes panning/zooming. */
 function MapCenterTracker({ onCenterChange }: { onCenterChange: (lat: number, lng: number) => void }) {
   useMapEvents({
@@ -84,6 +97,9 @@ interface MapInnerProps {
   onCenterChange?: (lat: number, lng: number) => void
   followedUserIds?: Set<string>
   mapStyle?: MapStyle
+  /** Ordered [lat,lng] points of the active route, drawn as a polyline */
+  routePath?: [number, number][]
+  routeColor?: string
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -97,6 +113,8 @@ export default function MapInner({
   onCenterChange,
   followedUserIds,
   mapStyle = 'light',
+  routePath,
+  routeColor = '#6366f1',
 }: MapInnerProps) {
   const tiles = TILE_PRESETS[mapStyle] ?? TILE_PRESETS.light
   const communityById = useMemo(
@@ -125,6 +143,15 @@ export default function MapInner({
       <ClickHandler onClick={onMapClick} />
       <FlyToController target={flyToTarget} />
       {onCenterChange && <MapCenterTracker onCenterChange={onCenterChange} />}
+
+      {/* Active route polyline + auto-fit */}
+      {routePath && routePath.length >= 2 && (
+        <>
+          <Polyline positions={routePath} pathOptions={{ color: routeColor, weight: 4, opacity: 0.85, dashArray: '1 8', lineCap: 'round' }} />
+          <Polyline positions={routePath} pathOptions={{ color: routeColor, weight: 4, opacity: 0.5 }} />
+          <RouteBoundsController path={routePath} />
+        </>
+      )}
 
       {/* Cluster layer — manages its own Leaflet layer imperatively */}
       <PinClusterLayer

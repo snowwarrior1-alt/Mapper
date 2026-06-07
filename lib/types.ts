@@ -100,6 +100,15 @@ export interface Collection {
   created_at: string
 }
 
+/** An ordered trail of pins, drawn as a polyline */
+export interface Route {
+  id: string
+  user_id: string
+  name: string
+  color: string
+  created_at: string
+}
+
 export interface Vote {
   id: string
   pin_id: string

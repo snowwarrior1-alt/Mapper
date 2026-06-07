@@ -4,11 +4,11 @@ import { useState } from 'react'
 import {
   Bookmark, BookmarkCheck, Check, ChevronDown, ChevronRight,
   Compass, Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
-  Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Newspaper,
+  Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Newspaper, Route as RouteIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
-import { Community, CommunityGroup, Pin, PendingInvite, Collection } from '@/lib/types'
+import { Community, CommunityGroup, Pin, PendingInvite, Collection, Route } from '@/lib/types'
 import Avatar from '@/components/Avatar'
 import ActivityFeed from '@/components/ActivityFeed'
 
@@ -36,6 +36,10 @@ interface SidebarProps {
   onCreateCollection: (name: string) => Promise<Collection | null>
   onRenameCollection: (id: string, name: string) => void
   onDeleteCollection: (id: string) => void
+  routes: Route[]
+  activeRouteId: string | null
+  onSelectRoute: (id: string) => void
+  onCreateRoute: (name: string) => Promise<Route | null>
   subscribedIds: Set<string>
   ownedCommunityIds: Set<string>
   modCommunityIds: Set<string>
@@ -85,6 +89,10 @@ export default function Sidebar({
   onCreateCollection,
   onRenameCollection,
   onDeleteCollection,
+  routes,
+  activeRouteId,
+  onSelectRoute,
+  onCreateRoute,
   subscribedIds,
   ownedCommunityIds,
   modCommunityIds,
@@ -144,6 +152,18 @@ export default function Sidebar({
       onRenameCollection(id, collectionRename.trim())
     }
     setRenamingCollectionId(null)
+  }
+  // Routes inline-create
+  const [creatingRoute, setCreatingRoute] = useState(false)
+  const [newRouteName, setNewRouteName]   = useState('')
+  const submitNewRoute = async () => {
+    const name = newRouteName.trim()
+    setCreatingRoute(false)
+    setNewRouteName('')
+    if (name) {
+      const r = await onCreateRoute(name)
+      if (r) onSelectRoute(r.id) // open it so the user can start adding stops
+    }
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -713,6 +733,59 @@ export default function Sidebar({
                     <Plus className="h-3.5 w-3.5" />
                   </span>
                   <span className="flex-1 text-sm font-medium">New list</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── Routes ── */}
+          {user && (
+            <div className="mb-1" onClick={(e) => e.stopPropagation()}>
+              {(routes.length > 0 || creatingRoute) && (
+                <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
+                  Routes
+                </p>
+              )}
+              {routes.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => onSelectRoute(r.id)}
+                  className={`mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                    activeRouteId === r.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  }`}
+                >
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: r.color + '22', border: `2px solid ${r.color}` }}
+                  >
+                    <RouteIcon className="h-3.5 w-3.5" style={{ color: r.color }} />
+                  </span>
+                  <span className="flex-1 truncate text-sm font-medium">{r.name}</span>
+                </button>
+              ))}
+              {creatingRoute ? (
+                <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={newRouteName}
+                  onChange={(e) => setNewRouteName(e.target.value)}
+                  onBlur={submitNewRoute}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitNewRoute()
+                    if (e.key === 'Escape') { setCreatingRoute(false); setNewRouteName('') }
+                  }}
+                  placeholder="Route name…"
+                  className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => { setCreatingRoute(true); setNewRouteName('') }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800">
+                    <RouteIcon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="flex-1 text-sm font-medium">New route</span>
                 </button>
               )}
             </div>

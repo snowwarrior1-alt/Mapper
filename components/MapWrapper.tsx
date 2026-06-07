@@ -26,6 +26,8 @@ interface MapWrapperProps {
   onCenterChange?: (lat: number, lng: number) => void
   followedUserIds?: Set<string>
   mapStyle?: MapStyle
+  routePath?: [number, number][]
+  routeColor?: string
 }
 
 export default function MapWrapper(props: MapWrapperProps) {

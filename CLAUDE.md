@@ -97,6 +97,7 @@ supabase/
   25-saved-pins.sql                       # saved_pins (private bookmarks) + RLS
   26-harden-pin-insert.sql                # force vote_count=0 + policy-derived expires_at on insert
   27-collections.sql                      # collections + collection_pins (named lists) + RLS
+  28-routes.sql                           # routes + route_pins (ordered trails) + RLS
   # Superseded — do not run:
   schema.sql
   auth-migration.sql
@@ -125,6 +126,8 @@ supabase/
 | `saved_pins` | Private per-user bookmarks (user_id, pin_id); RLS own-rows-only |
 | `collections` | User-named lists; RLS own-rows-only |
 | `collection_pins` | Membership: a pin in a collection (a pin can be in many) |
+| `routes` | Ordered trails (name, color); RLS own-rows-only |
+| `route_pins` | Ordered stops in a route (route_id, pin_id, position) |
 
 Key RPCs:
 - `vote_on_pin(p_pin_id, p_session_id, p_value)` — SECURITY DEFINER, handles toggle/switch/new votes
@@ -276,4 +279,5 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 - **Community pin search** — `CommunityPinsPanel` shows a search box (once a community has >5 pins) that filters the list by title/description, composing with the tag filter
 - **Saved pins** — private per-user bookmarks spanning any community; Save toggle in the pin detail modal, a "Saved" global filter in the sidebar (map filters to saved pins), tracked as `savedPinIds` in `app/page.tsx`
 - **Named collections** — user-curated lists (`collections` + `collection_pins`); "Lists" button in the pin detail modal adds/removes a pin and creates new lists; sidebar "Collections" section lists/creates/renames/deletes them and filters the map to a list's pins
+- **Routes / trails** — ordered pin sequences (`routes` + `route_pins`) drawn as a polyline (`MapInner` `<Polyline>` + auto-fit bounds). Sidebar "Routes" section creates/opens them; `RoutePanel` shows numbered stops with reorder/remove and an "Add stops" build mode where tapping map pins appends them in order (`routeBuildMode` in `app/page.tsx` intercepts pin clicks)
 - **Mobile-streamlined UX** — coherent z-index layering; floating controls hide under overlays; all modals are bottom sheets on mobile; persistent bottom tab bar (Map/Discover/Following/Profile)

@@ -488,7 +488,7 @@ export default function PinDetailModal({
     >
       <div
         className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-lg sm:rounded-2xl"
-        style={{ maxHeight: '90vh' }}
+        style={{ maxHeight: '90dvh' }}
       >
         {/* Drag handle — mobile only */}
         <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
@@ -1134,7 +1134,7 @@ export default function PinDetailModal({
         </div>
 
         {/* ── Comment input (sticky footer) ─────────────────────────────── */}
-        <div className="shrink-0 border-t border-gray-800 p-4">
+        <div className="shrink-0 border-t border-gray-800 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {user ? (
             <div className="flex items-end gap-2">
               <Avatar

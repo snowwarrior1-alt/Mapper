@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Menu, Plus, LocateFixed, Loader2 } from 'lucide-react'
+import { Menu, Zap, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
@@ -851,15 +851,16 @@ export default function Home() {
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* Mobile FAB — drop a pin at the current map centre.
-            Hidden on md+ (desktop uses tap-the-map) and whenever an overlay is open. */}
+        {/* Mobile quick-add FAB — extended pill so it reads as "Quick add", not a
+            generic "add pin". Hidden on md+ and whenever an overlay is open. */}
         {!overlayOpen && (
           <button
             onClick={handleFabAddPin}
-            aria-label="Drop a pin"
-            className="fixed bottom-36 right-4 z-[1100] flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-xl transition-transform active:scale-95 hover:bg-indigo-500 md:bottom-28 md:hidden"
+            aria-label="Quick add a pin near you"
+            className="fixed bottom-36 right-4 z-[1100] flex h-12 items-center gap-2 rounded-full bg-indigo-600 pl-4 pr-5 text-sm font-semibold text-white shadow-xl transition-transform active:scale-95 hover:bg-indigo-500 md:bottom-28 md:hidden"
           >
-            <Plus className="h-7 w-7" />
+            <Zap className="h-5 w-5" />
+            Quick add
           </button>
         )}
 

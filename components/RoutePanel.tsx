@@ -27,7 +27,7 @@ export default function RoutePanel({
   onDelete,
 }: RoutePanelProps) {
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-[1150] flex max-h-[85vh] flex-col overflow-hidden rounded-t-2xl border border-gray-800 bg-gray-900/95 shadow-2xl backdrop-blur-sm sm:bottom-auto sm:left-auto sm:top-0 sm:h-full sm:max-h-none sm:w-80 sm:rounded-none sm:border-b-0 sm:border-l sm:border-r-0 sm:border-t-0">
+    <div className="absolute bottom-0 left-0 right-0 z-[1150] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-gray-800 bg-gray-900/95 shadow-2xl backdrop-blur-sm sm:bottom-auto sm:left-auto sm:top-0 sm:h-full sm:max-h-none sm:w-80 sm:rounded-none sm:border-b-0 sm:border-l sm:border-r-0 sm:border-t-0">
       {/* Drag handle — mobile only */}
       <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
         <div className="h-1 w-10 rounded-full bg-gray-700" />

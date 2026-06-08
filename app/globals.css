@@ -2,7 +2,11 @@
 
 html,
 body {
-  height: 100%;
+  /* dvh tracks the *visible* viewport (excludes iOS Safari's dynamic toolbar),
+     so bottom-aligned sheet footers don't get hidden behind the URL bar.
+     vh is the fallback for browsers without dvh. */
+  height: 100vh;
+  height: 100dvh;
   margin: 0;
   padding: 0;
   overflow: hidden;

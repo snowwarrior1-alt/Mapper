@@ -339,7 +339,7 @@ export default function AddPinModal({
       className="absolute inset-0 z-[1200] flex items-end bg-black/50 sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-md sm:rounded-2xl" style={{ maxHeight: '90vh' }}>
+      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-700 bg-gray-900 shadow-2xl sm:max-w-md sm:rounded-2xl" style={{ maxHeight: '90dvh' }}>
         {/* Drag handle — visible on mobile only */}
         <div className="flex shrink-0 justify-center pt-3 pb-1 sm:hidden">
           <div className="h-1 w-10 rounded-full bg-gray-700" />
@@ -747,7 +747,7 @@ export default function AddPinModal({
           </div>
 
           {/* Actions */}
-          <div className="shrink-0 flex gap-3 border-t border-gray-800 px-5 py-4">
+          <div className="shrink-0 flex gap-3 border-t border-gray-800 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={onClose}

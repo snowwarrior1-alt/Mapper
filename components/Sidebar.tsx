@@ -251,154 +251,157 @@ export default function Sidebar({
     const pickerOpen    = groupPicker === c.id
 
     return (
-      <div key={c.id} className={`group relative mb-0.5 ${inGroup ? 'pl-4' : ''}`}>
-        {/* ── Main row ── */}
-        <button
-          onClick={() => { setGroupPicker(null); onSelectCommunity(active ? null : c.id) }}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 md:py-2 text-left transition-colors ${
-            active ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-          } ${hidden ? 'opacity-45' : ''}`}
-        >
-          <span
-            className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm"
-            style={{ backgroundColor: c.color + '22', border: `2px solid ${c.color}` }}
+      <div key={c.id} className={`group mb-0.5 ${inGroup ? 'pl-4' : ''}`}>
+        {/* ── Main row: button (flex-1) + action clusters in normal flow so a long
+              name truncates to make room instead of running under the icons ── */}
+        <div className={`relative flex items-center rounded-lg transition-colors ${
+          active ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        } ${hidden ? 'opacity-45' : ''}`}>
+          <button
+            onClick={() => { setGroupPicker(null); onSelectCommunity(active ? null : c.id) }}
+            className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 text-left md:py-2"
           >
-            {c.icon}
-            {subscribed && (
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-gray-900 bg-yellow-400" />
+            <span
+              className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm"
+              style={{ backgroundColor: c.color + '22', border: `2px solid ${c.color}` }}
+            >
+              {c.icon}
+              {subscribed && (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-gray-900 bg-yellow-400" />
+              )}
+            </span>
+
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+
+            {c.is_private && <Lock className="h-3 w-3 shrink-0 text-gray-600" />}
+            {(owner || mod) && (
+              <Shield
+                className="h-3 w-3 shrink-0"
+                style={{ color: owner ? c.color : '#9ca3af' }}
+                aria-label={owner ? 'You own this community' : 'You are a moderator'}
+              />
             )}
-          </span>
-
-          <span className="flex-1 truncate text-sm font-medium">{c.name}</span>
-
-          {c.is_private && <Lock className="h-3 w-3 shrink-0 text-gray-600" />}
-          {(owner || mod) && (
-            <Shield
-              className="h-3 w-3 shrink-0"
-              style={{ color: owner ? c.color : '#9ca3af' }}
-              aria-label={owner ? 'You own this community' : 'You are a moderator'}
-            />
-          )}
-
-          {/* Pin count — desktop only, fades on hover */}
-          <span className={`hidden rounded-full px-2 py-0.5 text-xs md:inline-flex md:group-hover:opacity-0 ${
-            active ? 'bg-gray-700 text-gray-300' : 'bg-gray-800 text-gray-500'
-          }`}>
-            {countFor(c.id)}
-          </span>
-        </button>
-
-        {/* ── Mobile action strip (always visible) ── */}
-        <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 md:hidden">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
-            title={hidden ? 'Show pins on map' : 'Hide pins from map'}
-            className={`rounded-lg p-2 transition-colors ${hidden ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-400'}`}
-          >
-            {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
-          {subscribed && user && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setPickerCreating(false); setPickerNewName('')
-                setGroupPicker(pickerOpen ? null : c.id)
-              }}
-              title="Move to folder"
-              className={`rounded-lg p-2 transition-colors ${
-                currentGroupId ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-400'
-              }`}
-            >
-              <Folder className="h-4 w-4" />
-            </button>
-          )}
-          {!c.is_private && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleSubscription(c.id) }}
-              title={subscribed ? 'Unsubscribe' : 'Subscribe'}
-              className={`rounded-lg p-2 transition-colors ${
-                subscribed ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'
-              }`}
-            >
-              {subscribed ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-            </button>
-          )}
-          {(owner || mod || isAdmin) && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onOpenSettings(c.id) }}
-              title="Settings"
-              className={`rounded-lg p-2 transition-colors ${
-                isAdmin && !owner && !mod ? 'text-red-500/60' : 'text-gray-600 hover:text-gray-400'
-              }`}
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          )}
-        </div>
 
-        {/* ── Desktop hover actions ── */}
-        <div className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity md:flex md:group-hover:pointer-events-auto md:group-hover:opacity-100">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
-            title={hidden ? 'Show pins on map' : 'Hide pins from map'}
-            className={`rounded p-1 transition-colors ${hidden ? 'text-indigo-400 hover:text-indigo-300' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          </button>
-          {subscribed && user && (
+          {/* ── Right cluster: mobile (always visible, in flow) ── */}
+          <div className="flex shrink-0 items-center gap-0.5 pr-1 md:hidden">
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setPickerCreating(false); setPickerNewName('')
-                setGroupPicker(pickerOpen ? null : c.id)
-              }}
-              title="Move to folder"
-              className={`rounded p-1 transition-colors ${
-                currentGroupId
-                  ? 'text-indigo-400 hover:text-indigo-300'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
+              onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
+              title={hidden ? 'Show pins on map' : 'Hide pins from map'}
+              className={`rounded-lg p-2 transition-colors ${hidden ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-400'}`}
             >
-              <Folder className="h-3.5 w-3.5" />
+              {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
-          )}
-          {!c.is_private && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleSubscription(c.id) }}
-              title={subscribed ? 'Unsubscribe' : 'Subscribe'}
-              className={`rounded p-1 transition-colors ${
-                subscribed ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {subscribed ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onAddPin(c.id) }}
-            title="Drop a pin here"
-            className="rounded p-1 text-gray-500 transition-colors hover:text-indigo-400"
-          >
-            <MapPin className="h-3.5 w-3.5" />
-          </button>
-          <Link
-            href={`/c/${c.slug}`}
-            onClick={(e) => e.stopPropagation()}
-            title="View community page"
-            className="rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
-          >
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </Link>
-          {(owner || mod || isAdmin) && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onOpenSettings(c.id) }}
-              title={owner ? 'Community settings' : isAdmin && !mod ? 'Admin settings' : 'Moderation queue'}
-              className={`rounded p-1 transition-colors hover:text-gray-300 ${
-                isAdmin && !owner && !mod ? 'text-red-500/60 hover:text-red-400' : 'text-gray-500'
-              }`}
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </button>
-          )}
+            {subscribed && user && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setPickerCreating(false); setPickerNewName('')
+                  setGroupPicker(pickerOpen ? null : c.id)
+                }}
+                title="Move to folder"
+                className={`rounded-lg p-2 transition-colors ${
+                  currentGroupId ? 'text-indigo-400' : 'text-gray-600 hover:text-gray-400'
+                }`}
+              >
+                <Folder className="h-4 w-4" />
+              </button>
+            )}
+            {!c.is_private && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleSubscription(c.id) }}
+                title={subscribed ? 'Unsubscribe' : 'Subscribe'}
+                className={`rounded-lg p-2 transition-colors ${
+                  subscribed ? 'text-yellow-400' : 'text-gray-600 hover:text-gray-400'
+                }`}
+              >
+                {subscribed ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+              </button>
+            )}
+            {(owner || mod || isAdmin) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onOpenSettings(c.id) }}
+                title="Settings"
+                className={`rounded-lg p-2 transition-colors ${
+                  isAdmin && !owner && !mod ? 'text-red-500/60' : 'text-gray-600 hover:text-gray-400'
+                }`}
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* ── Right cluster: desktop (pin count → actions on hover, in flow) ── */}
+          <div className="hidden shrink-0 items-center pr-2 md:flex">
+            <span className={`rounded-full px-2 py-0.5 text-xs md:group-hover:hidden ${
+              active ? 'bg-gray-700 text-gray-300' : 'bg-gray-800 text-gray-500'
+            }`}>
+              {countFor(c.id)}
+            </span>
+            <div className="hidden items-center gap-0.5 md:group-hover:flex">
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleCommunityVisibility(c.id) }}
+                title={hidden ? 'Show pins on map' : 'Hide pins from map'}
+                className={`rounded p-1 transition-colors ${hidden ? 'text-indigo-400 hover:text-indigo-300' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+              {subscribed && user && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPickerCreating(false); setPickerNewName('')
+                    setGroupPicker(pickerOpen ? null : c.id)
+                  }}
+                  title="Move to folder"
+                  className={`rounded p-1 transition-colors ${
+                    currentGroupId
+                      ? 'text-indigo-400 hover:text-indigo-300'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  <Folder className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {!c.is_private && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleSubscription(c.id) }}
+                  title={subscribed ? 'Unsubscribe' : 'Subscribe'}
+                  className={`rounded p-1 transition-colors ${
+                    subscribed ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {subscribed ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddPin(c.id) }}
+                title="Drop a pin here"
+                className="rounded p-1 text-gray-500 transition-colors hover:text-indigo-400"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+              </button>
+              <Link
+                href={`/c/${c.slug}`}
+                onClick={(e) => e.stopPropagation()}
+                title="View community page"
+                className="rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
+              >
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+              {(owner || mod || isAdmin) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onOpenSettings(c.id) }}
+                  title={owner ? 'Community settings' : isAdmin && !mod ? 'Admin settings' : 'Moderation queue'}
+                  className={`rounded p-1 transition-colors hover:text-gray-300 ${
+                    isAdmin && !owner && !mod ? 'text-red-500/60 hover:text-red-400' : 'text-gray-500'
+                  }`}
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── Group picker (inline dropdown) ── */}

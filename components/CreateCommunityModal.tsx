@@ -15,7 +15,7 @@ const EMOJIS = [
   // Places & landmarks
   '🏔️', '🏖️', '🗺️', '🏛️', '⛺', '🗼', '🏠', '🎪',
   // Food & drink
-  '🌮', '🍕', '☕', '🍺', '🥗', '🍜', '🍦',
+  '🌮', '🍕', '☕', '🍺', '🥗', '🍜', '🍦', '🦪',
   // Activities & culture
   '🎨', '🎵', '📚', '🚴', '🎮', '🧗', '🏊',
   // Transport & services

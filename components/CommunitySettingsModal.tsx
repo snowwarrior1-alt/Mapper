@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
-import { DEBOUNCE_MS, LIMITS } from '@/lib/constants'
+import { DEBOUNCE_MS, LIMITS, COMMUNITY_EMOJIS } from '@/lib/constants'
 import {
   Community, CommunityMember, CommunityModerator, CommunityTag, Profile,
   PinDuration, WhoCanPin, PIN_DURATION_LABELS, WHO_CAN_PIN_LABELS, GeoRestriction,
@@ -133,6 +133,22 @@ export default function CommunitySettingsModal({
   const renameExactMatch = renameSimilar.find(
     (c) => c.name.toLowerCase() === trimmedNewName.toLowerCase()
   )
+
+  // ── Icon state ───────────────────────────────────────────────────────────
+  const [icon, setIcon] = useState(community.icon)
+  const [iconSaved, setIconSaved] = useState(false)
+  const canEditAppearance = isOwner || isAdmin
+
+  const handleSelectIcon = async (emoji: string) => {
+    if (emoji === icon) return
+    const prev = icon
+    setIcon(emoji) // optimistic
+    const { error } = await supabase.from('communities').update({ icon: emoji }).eq('id', community.id)
+    if (error) { setIcon(prev); return } // RLS blocked / failed — revert
+    onSettingsUpdate?.({ icon: emoji })
+    setIconSaved(true)
+    setTimeout(() => setIconSaved(false), 1500)
+  }
 
   const handleRename = async () => {
     if (!trimmedNewName || trimmedNewName === community.name) return
@@ -673,6 +689,40 @@ export default function CommunitySettingsModal({
           {/* ── GENERAL tab ────────────────────────────────────────────────── */}
           {activeTab === 'general' && (
             <div className="p-5 space-y-6">
+              {/* ── Icon (owner / admin only) ── */}
+              {canEditAppearance && (
+                <section>
+                  <h3 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <span className="text-sm leading-none">{icon}</span>
+                    Icon
+                    {iconSaved && (
+                      <span className="flex items-center gap-1 normal-case text-green-400">
+                        <CheckCircle2 className="h-3 w-3" /> Saved
+                      </span>
+                    )}
+                  </h3>
+                  <p className="mb-3 text-xs text-gray-600">
+                    Shown on this community&apos;s pins and in the sidebar. Tap to change.
+                  </p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {COMMUNITY_EMOJIS.map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => handleSelectIcon(e)}
+                        className={`flex h-9 items-center justify-center rounded-lg border text-lg transition-all ${
+                          icon === e
+                            ? 'border-indigo-500 bg-indigo-600/20'
+                            : 'border-gray-700 hover:border-gray-600 hover:bg-gray-800'
+                        }`}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               <section>
                 <h3 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                   <Pencil className="h-3.5 w-3.5" />

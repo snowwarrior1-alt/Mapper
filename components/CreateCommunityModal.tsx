@@ -4,38 +4,12 @@ import { useState, useEffect } from 'react'
 import { Globe, Lock, Loader2, X, AlertTriangle, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
-import { DEBOUNCE_MS, LIMITS } from '@/lib/constants'
+import { DEBOUNCE_MS, LIMITS, COMMUNITY_EMOJIS, COMMUNITY_COLORS } from '@/lib/constants'
 
 // ── Picker data ──────────────────────────────────────────────────────────────
 
-const EMOJIS = [
-  // Nature & wildlife
-  '🐦', '🦋', '🌸', '🌿', '🍄', '🌊', '🌙', '⭐',
-  '🦁', '🐬', '🦅', '🌺', '🦊', '🐸', '🌻', '🍀',
-  // Places & landmarks
-  '🏔️', '🏖️', '🗺️', '🏛️', '⛺', '🗼', '🏠', '🎪',
-  // Food & drink
-  '🌮', '🍕', '☕', '🍺', '🥗', '🍜', '🍦', '🦪',
-  // Activities & culture
-  '🎨', '🎵', '📚', '🚴', '🎮', '🧗', '🏊',
-  // Transport & services
-  '🚗', '✈️', '🚂', '🚻', '📶', '🏥', '⛽',
-]
-
-const COLORS = [
-  '#6366f1', // indigo
-  '#a855f7', // purple
-  '#ec4899', // pink
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#14b8a6', // teal
-  '#3b82f6', // blue
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-  '#78716c', // stone
-]
+const EMOJIS = COMMUNITY_EMOJIS
+const COLORS = COMMUNITY_COLORS
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

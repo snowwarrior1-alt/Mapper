@@ -44,3 +44,25 @@ export const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID ?? ''
 
 // Z-index layering is documented in CLAUDE.md (map controls 1100 → sidebar 1400).
 // Components use literal Tailwind classes (z-[1100] …) — no shared JS constant.
+
+// ── Community appearance ──────────────────────────────────────────────────────
+// Shared icon + colour palettes for creating and editing a community.
+
+export const COMMUNITY_EMOJIS: string[] = [
+  // Nature & wildlife
+  '🐦', '🦋', '🌸', '🌿', '🍄', '🌊', '🌙', '⭐',
+  '🦁', '🐬', '🦅', '🌺', '🦊', '🐸', '🌻', '🍀',
+  // Places & landmarks
+  '🏔️', '🏖️', '🗺️', '🏛️', '⛺', '🗼', '🏠', '🎪',
+  // Food & drink
+  '🌮', '🍕', '☕', '🍺', '🥗', '🍜', '🍦', '🦪',
+  // Activities & culture
+  '🎨', '🎵', '📚', '🚴', '🎮', '🧗', '🏊',
+  // Transport & services
+  '🚗', '✈️', '🚂', '🚻', '📶', '🏥', '⛽',
+]
+
+export const COMMUNITY_COLORS: string[] = [
+  '#6366f1', '#a855f7', '#ec4899', '#ef4444', '#f97316', '#eab308',
+  '#22c55e', '#14b8a6', '#3b82f6', '#06b6d4', '#84cc16', '#78716c',
+]

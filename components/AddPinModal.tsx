@@ -83,6 +83,7 @@ export default function AddPinModal({
   const [title, setTitle] = useState(initialTitle ?? '')
   const [description, setDescription] = useState('')
   const [url, setUrl] = useState('')
+  const [address, setAddress] = useState('')
   const [photos, setPhotos] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -187,6 +188,11 @@ export default function AddPinModal({
     setLocationResults([])
     // Auto-fill title with the place name if user hasn't typed anything yet
     if (!title.trim()) setTitle(shortName)
+    // Pre-fill the address with the picked place (first few parts), unless the
+    // user already typed one — they can refine it before saving.
+    if (!address.trim()) {
+      setAddress(result.display_name.split(',').slice(0, 4).join(', ').trim())
+    }
   }
 
   const selectedCommunity = communities.find((c) => c.id === communityId)
@@ -252,6 +258,7 @@ export default function AddPinModal({
         title: title.trim(),
         description: description.trim() || null,
         url: url.trim() || null,
+        address: address.trim() || null,
         lat: pinLat,
         lng: pinLng,
         vote_count: 0,
@@ -561,6 +568,23 @@ export default function AddPinModal({
                 maxLength={500}
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="mb-1 block text-sm text-gray-400">
+                Address <span className="text-gray-600">(optional)</span>
+              </label>
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" />
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Auto-filled from the place — refine it if needed"
+                  maxLength={200}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 py-2.5 pl-9 pr-3 text-sm text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
             </div>
 
             {/* Event toggle */}

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDebounce } from '@/lib/hooks'
-import { DEBOUNCE_MS, LIMITS, COMMUNITY_EMOJIS } from '@/lib/constants'
+import { DEBOUNCE_MS, LIMITS, COMMUNITY_EMOJIS, COMMUNITY_COLORS } from '@/lib/constants'
 import {
   Community, CommunityMember, CommunityModerator, CommunityTag, Profile,
   PinDuration, WhoCanPin, PIN_DURATION_LABELS, WHO_CAN_PIN_LABELS, GeoRestriction,
@@ -148,6 +148,21 @@ export default function CommunitySettingsModal({
     onSettingsUpdate?.({ icon: emoji })
     setIconSaved(true)
     setTimeout(() => setIconSaved(false), 1500)
+  }
+
+  // ── Color state ──────────────────────────────────────────────────────────
+  const [color, setColor] = useState(community.color)
+  const [colorSaved, setColorSaved] = useState(false)
+
+  const handleSelectColor = async (hex: string) => {
+    if (hex === color) return
+    const prev = color
+    setColor(hex) // optimistic
+    const { error } = await supabase.from('communities').update({ color: hex }).eq('id', community.id)
+    if (error) { setColor(prev); return } // RLS blocked / failed — revert
+    onSettingsUpdate?.({ color: hex })
+    setColorSaved(true)
+    setTimeout(() => setColorSaved(false), 1500)
   }
 
   const handleRename = async () => {
@@ -717,6 +732,42 @@ export default function CommunitySettingsModal({
                         }`}
                       >
                         {e}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* ── Color (owner / admin only) ── */}
+              {canEditAppearance && (
+                <section>
+                  <h3 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} />
+                    Color
+                    {colorSaved && (
+                      <span className="flex items-center gap-1 normal-case text-green-400">
+                        <CheckCircle2 className="h-3 w-3" /> Saved
+                      </span>
+                    )}
+                  </h3>
+                  <p className="mb-3 text-xs text-gray-600">
+                    Used for this community&apos;s pins, banners, and tags. Tap to change.
+                  </p>
+                  <div className="grid grid-cols-6 gap-2">
+                    {COMMUNITY_COLORS.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => handleSelectColor(hex)}
+                        title={hex}
+                        className={`flex h-9 items-center justify-center rounded-lg border-2 transition-all ${
+                          color === hex ? 'border-white' : 'border-transparent hover:border-gray-500'
+                        }`}
+                        style={{ backgroundColor: hex + '33' }}
+                      >
+                        <span className="h-5 w-5 rounded-full" style={{ backgroundColor: hex }}>
+                          {color === hex && <CheckCircle2 className="h-5 w-5 text-white" />}
+                        </span>
                       </button>
                     ))}
                   </div>

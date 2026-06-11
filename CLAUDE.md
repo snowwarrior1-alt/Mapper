@@ -229,7 +229,7 @@ Key helper functions (SECURITY DEFINER):
 ## Deployment
 - **GitHub**: https://github.com/snowwarrior1-alt/Mapper
 - **Hosting**: Vercel (connected to GitHub repo, auto-deploys on push to `main`)
-- **Live URL**: https://mapper-gamma.vercel.app/
+- **Live URL**: https://mapcrowd.vercel.app/ (legacy alias `mapper-gamma.vercel.app` still resolves)
 - **Database**: Supabase project `tmycdgnofvmbyrmpqohw` (AWS us-west-2)
 
 ### Vercel env vars required
@@ -241,7 +241,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 ### Auth
 - Google OAuth enabled via Supabase Auth
 - Callback URL: `https://tmycdgnofvmbyrmpqohw.supabase.co/auth/v1/callback`
-- Supabase → Authentication → URL Configuration: Site URL and Redirect URLs set to `https://mapper-gamma.vercel.app/**`
+- Supabase → Authentication → URL Configuration: Site URL set to `https://mapcrowd.vercel.app`; Redirect URLs allowlist `https://mapcrowd.vercel.app/**` (keep `https://mapper-gamma.vercel.app/**` too while the old alias is live)
 
 ### Running SQL migrations
 **Fresh project**: run `schema-current.sql` — one file, full schema.

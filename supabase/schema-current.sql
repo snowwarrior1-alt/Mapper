@@ -310,12 +310,14 @@ ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.route_pins (
   route_id   UUID        NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
   pin_id     UUID        NOT NULL REFERENCES pins(id)   ON DELETE CASCADE,
-  position   INTEGER     NOT NULL DEFAULT 0,
+  step       INTEGER     NOT NULL DEFAULT 0,  -- pins sharing a step are alternatives ("or")
+  position   INTEGER     NOT NULL DEFAULT 0,  -- orders alternatives within a step
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (route_id, pin_id)
 );
 
 CREATE INDEX IF NOT EXISTS route_pins_route_idx ON route_pins (route_id);
+CREATE INDEX IF NOT EXISTS route_pins_order_idx ON route_pins (route_id, step, position);
 
 ALTER TABLE route_pins ENABLE ROW LEVEL SECURITY;
 

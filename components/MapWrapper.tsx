@@ -28,6 +28,7 @@ interface MapWrapperProps {
   mapStyle?: MapStyle
   routePath?: [number, number][]
   routeColor?: string
+  routeBranchLegs?: [number, number][][]
 }
 
 export default function MapWrapper(props: MapWrapperProps) {

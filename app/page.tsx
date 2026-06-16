@@ -24,6 +24,20 @@ import MapStyleSwitcher from '@/components/MapStyleSwitcher'
 import QuickAddSheet from '@/components/QuickAddSheet'
 import type { MapStyle } from '@/components/MapInner'
 
+// Group flat route stops into ordered steps; pins sharing a step are alternatives.
+type RouteStop = { pin: Pin; step: number; position: number }
+function groupRouteSteps(stops: RouteStop[]): { step: number; pins: Pin[] }[] {
+  const byStep = new Map<number, RouteStop[]>()
+  for (const s of stops) {
+    const arr = byStep.get(s.step) ?? []
+    arr.push(s)
+    byStep.set(s.step, arr)
+  }
+  return [...byStep.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([step, rows]) => ({ step, pins: rows.sort((a, b) => a.position - b.position).map((r) => r.pin) }))
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
@@ -66,10 +80,13 @@ export default function Home() {
   // Routes/trails — the open route, its ordered stops, and build mode
   const [routes, setRoutes] = useState<Route[]>([])
   const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
-  const [routeStops, setRouteStops] = useState<{ pin: Pin; position: number }[]>([])
+  const [routeStops, setRouteStops] = useState<{ pin: Pin; step: number; position: number }[]>([])
   // While the builder is open, which community's pins the map shows (so map taps
   // add the pins you're browsing). null = show all pins ("From map" tab).
   const [builderCommunityId, setBuilderCommunityId] = useState<string | null>(null)
+  // When adding an alternative ("or") to an existing step, the target step index;
+  // null = each added pin starts a new step.
+  const [routeTargetStep, setRouteTargetStep] = useState<number | null>(null)
   // A public route opened via /?route=<id> that the viewer doesn't own (so it's
   // not in `routes`). Read-only. Cleared on close.
   const [externalRoute, setExternalRoute] = useState<Route | null>(null)
@@ -398,7 +415,8 @@ export default function Home() {
   const activeTravelMode = ownedActive?.travel_mode ?? null
   useEffect(() => {
     if (!activeRouteId || !ownedActive) return
-    const coords = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
+    // The snapped path follows the spine: the first pin of each step.
+    const coords = groupRouteSteps(routeStops).map((g) => [g.pins[0].lat, g.pins[0].lng] as [number, number])
     if (coords.length < 2) { setRouteGeometry(null); return }
     const mode = activeTravelMode as TravelMode
     let cancelled = false
@@ -508,16 +526,17 @@ export default function Home() {
   const loadRouteStops = useCallback(async (routeId: string) => {
     const { data } = await supabase
       .from('route_pins')
-      .select('position, pin:pins(*, community:communities(*), profile:profiles(username, avatar_url))')
+      .select('step, position, pin:pins(*, community:communities(*), profile:profiles(username, avatar_url))')
       .eq('route_id', routeId)
+      .order('step')
       .order('position')
     const stops = (data ?? [])
       .map((r) => {
-        const row = r as { position: number; pin: Pin | Pin[] }
+        const row = r as { step: number; position: number; pin: Pin | Pin[] }
         const pin = Array.isArray(row.pin) ? row.pin[0] : row.pin
-        return pin ? { pin, position: row.position } : null
+        return pin ? { pin, step: row.step, position: row.position } : null
       })
-      .filter((s): s is { pin: Pin; position: number } => !!s)
+      .filter((s): s is { pin: Pin; step: number; position: number } => !!s)
     setRouteStops(stops)
   }, [])
 
@@ -525,6 +544,7 @@ export default function Home() {
     setSelectedCommunity(null)       // the builder takes over the map area
     setActiveRouteId(id)
     setBuilderCommunityId(null)
+    setRouteTargetStep(null)
     loadRouteStops(id)
   }
 
@@ -532,6 +552,7 @@ export default function Home() {
     setActiveRouteId(null)
     setRouteStops([])
     setBuilderCommunityId(null)
+    setRouteTargetStep(null)
     setExternalRoute(null)
     setRouteGeometry(null)
   }
@@ -581,10 +602,20 @@ export default function Home() {
 
   const handleAddPinToRoute = async (pin: Pin) => {
     if (!activeRouteId) return
-    if (routeStops.some((s) => s.pin.id === pin.id)) return // no duplicates
-    const nextPos = routeStops.length ? Math.max(...routeStops.map((s) => s.position)) + 1 : 0
-    setRouteStops((prev) => [...prev, { pin, position: nextPos }])
-    await supabase.from('route_pins').insert({ route_id: activeRouteId, pin_id: pin.id, position: nextPos })
+    if (routeStops.some((s) => s.pin.id === pin.id)) return // a pin appears at most once
+    let step: number, position: number
+    if (routeTargetStep != null) {
+      // Adding an alternative ("or") to an existing step.
+      step = routeTargetStep
+      const inStep = routeStops.filter((s) => s.step === step)
+      position = inStep.length ? Math.max(...inStep.map((s) => s.position)) + 1 : 0
+    } else {
+      // New step appended after the last one.
+      step = routeStops.length ? Math.max(...routeStops.map((s) => s.step)) + 1 : 0
+      position = 0
+    }
+    setRouteStops((prev) => [...prev, { pin, step, position }])
+    await supabase.from('route_pins').insert({ route_id: activeRouteId, pin_id: pin.id, step, position })
   }
 
   const handleRemoveRouteStop = async (pinId: string) => {
@@ -593,21 +624,20 @@ export default function Home() {
     await supabase.from('route_pins').delete().eq('route_id', activeRouteId).eq('pin_id', pinId)
   }
 
-  const handleMoveRouteStop = async (index: number, dir: -1 | 1) => {
+  // Move a whole STEP (with all its alternatives) up or down by swapping step
+  // numbers with the adjacent step.
+  const handleMoveRouteStep = async (step: number, dir: -1 | 1) => {
     if (!activeRouteId) return
-    const j = index + dir
-    if (j < 0 || j >= routeStops.length) return
-    const a = routeStops[index], b = routeStops[j]
-    // Swap positions in the DB and locally
-    const reordered = [...routeStops]
-    reordered[index] = b; reordered[j] = a
-    const posA = a.position, posB = b.position
-    reordered[j] = { ...a, position: posB }
-    reordered[index] = { ...b, position: posA }
-    setRouteStops(reordered.sort((x, y) => x.position - y.position))
+    const orderedSteps = [...new Set(routeStops.map((s) => s.step))].sort((a, b) => a - b)
+    const idx = orderedSteps.indexOf(step)
+    const j = idx + dir
+    if (idx < 0 || j < 0 || j >= orderedSteps.length) return
+    const other = orderedSteps[j]
+    setRouteStops((prev) =>
+      prev.map((s) => (s.step === step ? { ...s, step: other } : s.step === other ? { ...s, step } : s)))
     await Promise.all([
-      supabase.from('route_pins').update({ position: posB }).eq('route_id', activeRouteId).eq('pin_id', a.pin.id),
-      supabase.from('route_pins').update({ position: posA }).eq('route_id', activeRouteId).eq('pin_id', b.pin.id),
+      supabase.from('route_pins').update({ step: other }).eq('route_id', activeRouteId).in('pin_id', routeStops.filter((s) => s.step === step).map((s) => s.pin.id)),
+      supabase.from('route_pins').update({ step }).eq('route_id', activeRouteId).in('pin_id', routeStops.filter((s) => s.step === other).map((s) => s.pin.id)),
     ])
   }
 
@@ -864,10 +894,23 @@ export default function Home() {
     : null
   // Only the owner can edit; a public route opened by someone else is view-only.
   const routeCanEdit = !!activeRoute && !!user && activeRoute.user_id === user.id
+  // Steps drive both the spine (main path) and the dashed "or" spurs to alternatives.
+  const routeStepGroups = groupRouteSteps(routeStops)
+  const spinePins = routeStepGroups.map((g) => g.pins[0])
+  const straightPath = spinePins.map((p) => [p.lat, p.lng] as [number, number])
   // Prefer the snapped path (this session's recompute, else stored); fall back to
-  // straight lines between stops when no geometry is available yet.
-  const straightPath = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
+  // straight lines along the spine when no geometry is available yet.
   const routePath = routeGeometry ?? activeRoute?.geometry ?? straightPath
+  // Dashed spurs: from the previous step's spine pin to each alternative pin.
+  const routeBranchLegs: [number, number][][] = []
+  routeStepGroups.forEach((g, i) => {
+    if (i > 0 && g.pins.length > 1) {
+      const from = spinePins[i - 1]
+      for (let k = 1; k < g.pins.length; k++) {
+        routeBranchLegs.push([[from.lat, from.lng], [g.pins[k].lat, g.pins[k].lng]])
+      }
+    }
+  })
 
   // While building (owner), the map shows the community being browsed (so taps add
   // those pins); on "From map" it shows everything. A read-only viewer shows just
@@ -1007,20 +1050,23 @@ export default function Home() {
           mapStyle={mapStyle}
           routePath={routePath}
           routeColor={activeRoute?.color}
+          routeBranchLegs={routeBranchLegs}
         />
 
         {activeRoute && (
           <RouteBuilder
             route={activeRoute}
-            stops={routeStops}
+            steps={routeStepGroups}
             communities={communities}
             pins={pins}
             canEdit={routeCanEdit}
             authorName={activeRoute.profile?.username ?? undefined}
+            targetStep={routeTargetStep}
+            onSetTargetStep={setRouteTargetStep}
             onSelectBuilderCommunity={setBuilderCommunityId}
             onAddPin={handleAddPinToRoute}
             onRemoveStop={handleRemoveRouteStop}
-            onMoveStop={handleMoveRouteStop}
+            onMoveStep={handleMoveRouteStep}
             onFlyToPin={(pin) => handleFlyTo(pin.lat, pin.lng, 16)}
             onRename={handleRenameRoute}
             onUpdateColor={handleUpdateRouteColor}

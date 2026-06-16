@@ -13,15 +13,17 @@ type Tab = 'stops' | 'community' | 'map'
 
 interface RouteBuilderProps {
   route: Route
-  stops: { pin: Pin; position: number }[]
+  steps: { step: number; pins: Pin[] }[]        // ordered steps; >1 pin = alternatives
   communities: Community[]
   pins: Pin[]                                   // all in-memory approved pins
   canEdit: boolean                              // false = read-only public viewer
   authorName?: string                           // shown in the read-only viewer
+  targetStep: number | null                     // when adding an alternative to a step
+  onSetTargetStep: (step: number | null) => void
   onSelectBuilderCommunity: (id: string | null) => void  // drives which pins the map shows
   onAddPin: (pin: Pin) => void
   onRemoveStop: (pinId: string) => void
-  onMoveStop: (index: number, dir: -1 | 1) => void
+  onMoveStep: (step: number, dir: -1 | 1) => void
   onFlyToPin: (pin: Pin) => void
   onRename: (id: string, name: string) => void
   onUpdateColor: (id: string, color: string) => void
@@ -32,12 +34,13 @@ interface RouteBuilderProps {
 }
 
 export default function RouteBuilder({
-  route, stops, communities, pins, canEdit, authorName,
-  onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStop, onFlyToPin,
+  route, steps, communities, pins, canEdit, authorName, targetStep, onSetTargetStep,
+  onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStep, onFlyToPin,
   onRename, onUpdateColor, onUpdateMode, onPublish, onDelete, onClose,
 }: RouteBuilderProps) {
-  const [tab, setTab] = useState<Tab>(!canEdit || stops.length > 0 ? 'stops' : 'community')
-  const defaultCommunityId = stops[0]?.pin.community_id ?? communities[0]?.id ?? null
+  const totalStops = steps.reduce((n, g) => n + g.pins.length, 0)
+  const [tab, setTab] = useState<Tab>(!canEdit || totalStops > 0 ? 'stops' : 'community')
+  const defaultCommunityId = steps[0]?.pins[0]?.community_id ?? communities[0]?.id ?? null
   const [pickedCommunityId, setPickedCommunityId] = useState<string | null>(defaultCommunityId)
   const [search, setSearch] = useState('')
   const [editingName, setEditingName] = useState(false)
@@ -55,7 +58,11 @@ export default function RouteBuilder({
 
   useEffect(() => { setNameDraft(route.name) }, [route.id, route.name])
 
-  const addedIds = useMemo(() => new Set(stops.map((s) => s.pin.id)), [stops])
+  const addedIds = useMemo(() => new Set(steps.flatMap((g) => g.pins.map((p) => p.id))), [steps])
+
+  // Switch to the "From community" tab to add an alternative to a specific step.
+  const startAddAlternative = (step: number) => { onSetTargetStep(step); setTab('community') }
+  const finishAdding = () => { onSetTargetStep(null); setTab('stops') }
 
   const communityPins = useMemo(() => {
     if (!pickedCommunityId) return []
@@ -96,9 +103,9 @@ export default function RouteBuilder({
     </div>
   )
 
-  // ── Stops list ────────────────────────────────────────────────────────────
+  // ── Steps list (a step with >1 pin = alternatives) ──────────────────────────
   const renderStops = () =>
-    stops.length === 0 ? (
+    steps.length === 0 ? (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
         <MapPinned className="h-8 w-8 text-gray-700" />
         <p className="text-sm font-medium text-gray-400">No stops yet</p>
@@ -109,43 +116,76 @@ export default function RouteBuilder({
       </div>
     ) : (
       <ul className="divide-y divide-gray-800/60">
-        {stops.map((s, i) => (
-          <li key={s.pin.id} className="flex items-center gap-2 px-3 py-2.5">
-            <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-              style={{ backgroundColor: route.color }}
-            >
-              {i + 1}
-            </span>
-            <button onClick={() => onFlyToPin(s.pin)} className="min-w-0 flex-1 text-left">
-              <p className="truncate text-sm font-medium text-white">{s.pin.title}</p>
-              {s.pin.community && (
-                <p className="truncate text-xs text-gray-500">{s.pin.community.icon} {s.pin.community.name}</p>
+        {steps.map((g, i) => (
+          <li key={g.step} className="px-3 py-2.5">
+            <div className="flex gap-2">
+              <span
+                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                style={{ backgroundColor: route.color }}
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                {g.pins.map((pin, k) => (
+                  <div key={pin.id}>
+                    {k > 0 && <p className="my-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">or</p>}
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => onFlyToPin(pin)} className="min-w-0 flex-1 text-left">
+                        <p className="truncate text-sm font-medium text-white">{pin.title}</p>
+                        {pin.community && (
+                          <p className="truncate text-xs text-gray-500">{pin.community.icon} {pin.community.name}</p>
+                        )}
+                      </button>
+                      {canEdit && (
+                        <button onClick={() => onRemoveStop(pin.id)} title="Remove"
+                          className="shrink-0 rounded p-1 text-gray-600 transition-colors hover:text-red-400">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {canEdit && (
+                  <button onClick={() => startAddAlternative(g.step)}
+                    className="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300">
+                    <Plus className="h-3 w-3" /> Add alternative
+                  </button>
+                )}
+              </div>
+              {canEdit && (
+                <div className="flex shrink-0 flex-col items-center">
+                  <button onClick={() => onMoveStep(g.step, -1)} disabled={i === 0} title="Move step up"
+                    className="rounded p-1 text-gray-600 transition-colors hover:text-gray-300 disabled:opacity-30">
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => onMoveStep(g.step, 1)} disabled={i === steps.length - 1} title="Move step down"
+                    className="rounded p-1 text-gray-600 transition-colors hover:text-gray-300 disabled:opacity-30">
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
               )}
-            </button>
-            <div className="flex shrink-0 items-center">
-              <button onClick={() => onMoveStop(i, -1)} disabled={i === 0} title="Move up"
-                className="rounded p-1 text-gray-600 transition-colors hover:text-gray-300 disabled:opacity-30">
-                <ChevronUp className="h-4 w-4" />
-              </button>
-              <button onClick={() => onMoveStop(i, 1)} disabled={i === stops.length - 1} title="Move down"
-                className="rounded p-1 text-gray-600 transition-colors hover:text-gray-300 disabled:opacity-30">
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              <button onClick={() => onRemoveStop(s.pin.id)} title="Remove stop"
-                className="rounded p-1 text-gray-600 transition-colors hover:text-red-400">
-                <X className="h-3.5 w-3.5" />
-              </button>
             </div>
           </li>
         ))}
       </ul>
     )
 
+  // Banner shown while adding alternatives to a specific step.
+  const targetStepNumber = targetStep == null ? null : steps.findIndex((g) => g.step === targetStep) + 1
+  const addingBanner = targetStep != null && (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/10 px-3 py-2 text-xs text-indigo-200">
+      <span>Adding an <span className="font-semibold">alternative</span> to step {targetStepNumber}</span>
+      <button onClick={finishAdding} className="shrink-0 rounded-md bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-500">
+        Done
+      </button>
+    </div>
+  )
+
   // ── Community pin picker ──────────────────────────────────────────────────
   const renderCommunityPicker = () => (
     <div className="flex h-full flex-col">
       <div className="shrink-0 space-y-2 p-3">
+        {addingBanner}
         <select
           value={pickedCommunityId ?? ''}
           onChange={(e) => setPickedCommunityId(e.target.value || null)}
@@ -204,13 +244,19 @@ export default function RouteBuilder({
 
   // ── From-map hint ─────────────────────────────────────────────────────────
   const renderMapHint = () => (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      <MapPinned className="h-8 w-8 text-gray-700" />
-      <p className="text-sm font-medium text-gray-400">Tap pins on the map</p>
-      <p className="text-xs leading-relaxed text-gray-600">
-        Each pin you tap is added to <span className="font-semibold text-gray-400">{route.name}</span> in
-        order. Switch to <span className="font-semibold text-gray-400">Stops</span> to reorder them.
-      </p>
+    <div className="flex h-full flex-col">
+      {addingBanner && <div className="p-3">{addingBanner}</div>}
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+        <MapPinned className="h-8 w-8 text-gray-700" />
+        <p className="text-sm font-medium text-gray-400">Tap pins on the map</p>
+        <p className="text-xs leading-relaxed text-gray-600">
+          {targetStep != null ? (
+            <>Each pin you tap becomes an <span className="font-semibold text-gray-400">alternative</span> for step {targetStepNumber}.</>
+          ) : (
+            <>Each pin you tap is added to <span className="font-semibold text-gray-400">{route.name}</span> as a new step. Switch to <span className="font-semibold text-gray-400">Stops</span> to reorder.</>
+          )}
+        </p>
+      </div>
     </div>
   )
 
@@ -256,7 +302,7 @@ export default function RouteBuilder({
           <h2 className="truncate text-sm font-bold text-white">{route.name}</h2>
         )}
         <p className="truncate text-xs text-gray-500">
-          {activeMode.emoji} {activeMode.label} · {stops.length} {stops.length === 1 ? 'stop' : 'stops'}
+          {activeMode.emoji} {activeMode.label} · {totalStops} {totalStops === 1 ? 'stop' : 'stops'}
           {!canEdit && authorName && <> · by {authorName}</>}
           {!canEdit && publishedCommunity && <> · {publishedCommunity.icon} {publishedCommunity.name}</>}
         </p>

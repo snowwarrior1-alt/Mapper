@@ -103,6 +103,8 @@ interface MapInnerProps {
   /** Ordered [lat,lng] points of the active route, drawn as a polyline */
   routePath?: [number, number][]
   routeColor?: string
+  /** Optional "or" spurs — each a 2-point segment to an alternative stop (dashed) */
+  routeBranchLegs?: [number, number][][]
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -118,6 +120,7 @@ export default function MapInner({
   mapStyle = 'light',
   routePath,
   routeColor = '#6366f1',
+  routeBranchLegs,
 }: MapInnerProps) {
   const tiles = TILE_PRESETS[mapStyle] ?? TILE_PRESETS.light
   const communityById = useMemo(
@@ -146,6 +149,11 @@ export default function MapInner({
       <ClickHandler onClick={onMapClick} />
       <FlyToController target={flyToTarget} />
       {onCenterChange && <MapCenterTracker onCenterChange={onCenterChange} />}
+
+      {/* Optional "or" spurs to alternative stops — thin dashed branches */}
+      {routeBranchLegs?.map((leg, i) => (
+        <Polyline key={i} positions={leg} pathOptions={{ color: routeColor, weight: 3, opacity: 0.45, dashArray: '4 6', lineCap: 'round' }} />
+      ))}
 
       {/* Active route polyline + auto-fit */}
       {routePath && routePath.length >= 2 && (

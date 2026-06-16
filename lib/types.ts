@@ -113,8 +113,18 @@ export interface Route {
   community_id: string | null   // the community a public route is published to
   travel_mode: TravelMode       // ORS profile the snapped path follows
   geometry: [number, number][] | null  // cached [lat,lng] snapped path; null = straight lines
+  folder_id: string | null      // sidebar folder; null = ungrouped
   created_at: string
   profile?: Pick<Profile, 'username' | 'avatar_url'> | null // author, for public routes
+}
+
+/** A sidebar folder for organising routes */
+export interface RouteFolder {
+  id: string
+  user_id: string
+  name: string
+  position: number
+  created_at: string
 }
 
 export interface Vote {

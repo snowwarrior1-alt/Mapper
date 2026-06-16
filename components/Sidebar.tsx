@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
-import { Community, CommunityGroup, Pin, PendingInvite, Collection, Route } from '@/lib/types'
+import { Community, CommunityGroup, Pin, PendingInvite, Collection, Route, RouteFolder } from '@/lib/types'
 import Avatar from '@/components/Avatar'
 import ActivityFeed from '@/components/ActivityFeed'
 
@@ -45,6 +45,11 @@ interface SidebarProps {
   onSelectRoute: (id: string) => void
   onCreateRoute: (name: string) => Promise<Route | null>
   onDeleteRoute: (id: string) => void
+  routeFolders: RouteFolder[]
+  onCreateRouteFolder: (name: string) => void
+  onRenameRouteFolder: (id: string, name: string) => void
+  onDeleteRouteFolder: (id: string) => void
+  onAssignRouteFolder: (routeId: string, folderId: string | null) => void
   subscribedIds: Set<string>
   ownedCommunityIds: Set<string>
   modCommunityIds: Set<string>
@@ -101,6 +106,11 @@ export default function Sidebar({
   onSelectRoute,
   onCreateRoute,
   onDeleteRoute,
+  routeFolders,
+  onCreateRouteFolder,
+  onRenameRouteFolder,
+  onDeleteRouteFolder,
+  onAssignRouteFolder,
   subscribedIds,
   ownedCommunityIds,
   modCommunityIds,
@@ -173,6 +183,75 @@ export default function Sidebar({
       if (r) onSelectRoute(r.id) // open it so the user can start adding stops
     }
   }
+
+  // Route folders — collapse, create, rename, and per-route "move to folder" menu
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const toggleFolder = (id: string) =>
+    setCollapsedFolders((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const submitNewFolder = () => {
+    const name = newFolderName.trim()
+    setCreatingFolder(false); setNewFolderName('')
+    if (name) onCreateRouteFolder(name)
+  }
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
+  const [folderRename, setFolderRename] = useState('')
+  const [folderMenuRouteId, setFolderMenuRouteId] = useState<string | null>(null)
+
+  const renderRouteRow = (r: Route) => (
+    <div key={r.id} className="group/route relative mb-0.5">
+      <div className={`flex items-center rounded-lg transition-colors ${
+        activeRouteId === r.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+      }`}>
+        <button onClick={() => onSelectRoute(r.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-3 text-left">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: r.color + '22', border: `2px solid ${r.color}` }}>
+            <RouteIcon className="h-3.5 w-3.5" style={{ color: r.color }} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{r.name}</span>
+          {r.is_public && <Globe className="h-3.5 w-3.5 shrink-0 text-green-500" aria-label="Public" />}
+        </button>
+        {/* Move to folder (only when folders exist) */}
+        {routeFolders.length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setFolderMenuRouteId((id) => (id === r.id ? null : r.id)) }}
+            title="Move to folder"
+            className="shrink-0 p-1 text-gray-500 transition-opacity hover:text-gray-300 md:opacity-0 md:group-hover/route:opacity-100"
+          >
+            <Folder className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {/* Delete */}
+        <button
+          onClick={(e) => { e.stopPropagation(); if (confirm(`Delete the route “${r.name}”? This can't be undone.`)) onDeleteRoute(r.id) }}
+          title="Delete route"
+          className="shrink-0 p-1 pr-2 text-gray-500 transition-opacity hover:text-red-400 md:opacity-0 md:group-hover/route:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Inline "move to folder" picker (in normal flow so the scroll container never clips it) */}
+      {folderMenuRouteId === r.id && (
+        <div className="ml-9 mt-0.5 mb-1 rounded-lg border border-gray-700/70 bg-gray-900/60 p-1">
+          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Move to folder…</p>
+          <button onClick={() => { onAssignRouteFolder(r.id, null); setFolderMenuRouteId(null) }}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-300 hover:bg-gray-800">
+            <span className="min-w-0 flex-1 truncate text-left">No folder</span>
+            {!r.folder_id && <Check className="h-3.5 w-3.5" />}
+          </button>
+          {routeFolders.map((f) => (
+            <button key={f.id} onClick={() => { onAssignRouteFolder(r.id, f.id); setFolderMenuRouteId(null) }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-300 hover:bg-gray-800">
+              <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+              <span className="min-w-0 flex-1 truncate text-left">{f.name}</span>
+              {r.folder_id === f.id && <Check className="h-3.5 w-3.5" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
   // ── Helpers ─────────────────────────────────────────────────────────────
   const countFor    = (id: string) => pins.filter((p) => p.community_id === id).length
@@ -770,43 +849,69 @@ export default function Sidebar({
           {/* ── Routes ── */}
           {user && (
             <div className="mb-1" onClick={(e) => e.stopPropagation()}>
-              {(routes.length > 0 || creatingRoute) && (
+              {(routes.length > 0 || routeFolders.length > 0 || creatingRoute || creatingFolder) && (
                 <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
                   Routes
                 </p>
               )}
-              {routes.map((r) => (
-                <div key={r.id} className="group mb-0.5">
-                  <div className={`flex items-center rounded-lg transition-colors ${
-                    activeRouteId === r.id ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  }`}>
-                    <button
-                      onClick={() => onSelectRoute(r.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-3 text-left"
-                    >
-                      <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                        style={{ backgroundColor: r.color + '22', border: `2px solid ${r.color}` }}
-                      >
-                        <RouteIcon className="h-3.5 w-3.5" style={{ color: r.color }} />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{r.name}</span>
-                      {r.is_public && <Globe className="h-3.5 w-3.5 shrink-0 text-green-500" aria-label="Public" />}
-                    </button>
-                    {/* Delete — always tappable on mobile, on hover for desktop */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm(`Delete the route “${r.name}”? This can't be undone.`)) onDeleteRoute(r.id)
-                      }}
-                      title="Delete route"
-                      className="shrink-0 p-1 pr-2 text-gray-500 transition-opacity hover:text-red-400 md:opacity-0 md:group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+
+              {/* Folders (collapsible) */}
+              {routeFolders.map((folder) => {
+                const collapsed = collapsedFolders.has(folder.id)
+                const inFolder = routes.filter((r) => r.folder_id === folder.id)
+                const isRenaming = renamingFolderId === folder.id
+                return (
+                  <div key={folder.id} className="mb-1">
+                    <div className="group/fld mb-0.5 flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-gray-800/50">
+                      <button onClick={() => toggleFolder(folder.id)} className="flex min-w-0 flex-1 items-center gap-1.5">
+                        {collapsed ? <ChevronRight className="h-3 w-3 shrink-0 text-gray-600" /> : <ChevronDown className="h-3 w-3 shrink-0 text-gray-600" />}
+                        {isRenaming ? (
+                          <input
+                            // eslint-disable-next-line jsx-a11y/no-autofocus
+                            autoFocus
+                            value={folderRename}
+                            onChange={(e) => setFolderRename(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { if (folderRename.trim()) onRenameRouteFolder(folder.id, folderRename.trim()); setRenamingFolderId(null) }
+                              if (e.key === 'Escape') setRenamingFolderId(null)
+                            }}
+                            onBlur={() => { if (folderRename.trim() && folderRename.trim() !== folder.name) onRenameRouteFolder(folder.id, folderRename.trim()); setRenamingFolderId(null) }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full bg-transparent text-xs font-semibold uppercase tracking-wider text-gray-400 outline-none"
+                          />
+                        ) : (
+                          <span className="truncate text-xs font-semibold uppercase tracking-wider text-gray-500">{folder.name}</span>
+                        )}
+                      </button>
+                      <span className="shrink-0 text-[10px] text-gray-700">{inFolder.length}</span>
+                      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/fld:opacity-100">
+                        {!isRenaming && (
+                          <button onClick={(e) => { e.stopPropagation(); setRenamingFolderId(folder.id); setFolderRename(folder.name) }} title="Rename folder"
+                            className="rounded p-0.5 text-gray-600 transition-colors hover:text-gray-300">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteRouteFolder(folder.id) }} title="Delete folder (keeps the routes)"
+                          className="rounded p-0.5 text-gray-600 transition-colors hover:text-red-400">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    {!collapsed && inFolder.map(renderRouteRow)}
+                    {!collapsed && inFolder.length === 0 && (
+                      <p className="py-1 pl-8 text-[10px] italic text-gray-700">Empty — move routes here</p>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
+
+              {/* Ungrouped routes */}
+              {routeFolders.length > 0 && routes.some((r) => !r.folder_id) && (
+                <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-700">Other routes</p>
+              )}
+              {routes.filter((r) => !r.folder_id).map(renderRouteRow)}
+
+              {/* New route */}
               {creatingRoute ? (
                 <input
                   // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -830,6 +935,33 @@ export default function Sidebar({
                     <RouteIcon className="h-3.5 w-3.5" />
                   </span>
                   <span className="flex-1 text-sm font-medium">New route</span>
+                </button>
+              )}
+
+              {/* New folder */}
+              {creatingFolder ? (
+                <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onBlur={submitNewFolder}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitNewFolder()
+                    if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
+                  }}
+                  placeholder="Folder name…"
+                  className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => { setCreatingFolder(true); setNewFolderName('') }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800">
+                    <FolderPlus className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="flex-1 text-sm font-medium">New folder</span>
                 </button>
               )}
             </div>

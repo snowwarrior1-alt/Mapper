@@ -5,7 +5,7 @@ import { Menu, Zap, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
-import { Community, Pin, PendingInvite, CommunityGroup, Collection, Route, TravelMode } from '@/lib/types'
+import { Community, Pin, PendingInvite, CommunityGroup, Collection, Route, RouteFolder, TravelMode } from '@/lib/types'
 import { fetchRouteGeometry } from '@/lib/routing'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
@@ -79,6 +79,7 @@ export default function Home() {
   const [activeCollectionPinIds, setActiveCollectionPinIds] = useState<Set<string>>(new Set())
   // Routes/trails — the open route, its ordered stops, and build mode
   const [routes, setRoutes] = useState<Route[]>([])
+  const [routeFolders, setRouteFolders] = useState<RouteFolder[]>([])
   const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
   const [routeStops, setRouteStops] = useState<RouteStop[]>([])
   // While the builder is open, which community's pins the map shows (so map taps
@@ -248,6 +249,17 @@ export default function Home() {
     if (data) setRoutes(data as Route[])
   }, [user])
 
+  const fetchRouteFolders = useCallback(async () => {
+    if (!user) { setRouteFolders([]); return }
+    const { data } = await supabase
+      .from('route_folders')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('position')
+      .order('created_at')
+    if (data) setRouteFolders(data as RouteFolder[])
+  }, [user])
+
   const fetchMyUsername = useCallback(async () => {
     if (!user) { setMyUsername(null); return }
     const { data } = await supabase
@@ -287,6 +299,7 @@ export default function Home() {
   useEffect(() => { fetchSaved() }, [fetchSaved])
   useEffect(() => { fetchCollections() }, [fetchCollections])
   useEffect(() => { fetchRoutes() }, [fetchRoutes])
+  useEffect(() => { fetchRouteFolders() }, [fetchRouteFolders])
   useEffect(() => { fetchMyUsername() }, [fetchMyUsername])
 
   // Reset manual-filter flag when auth changes, and clear subscribed view on sign-out
@@ -598,6 +611,35 @@ export default function Home() {
       if (cur === id) { setRouteStops([]); setBuilderCommunityId(null); return null }
       return cur
     })
+  }, [])
+
+  // ── Route folders ──────────────────────────────────────────────────────────
+  const handleCreateRouteFolder = useCallback(async (name: string) => {
+    if (!user || !name.trim()) return
+    const { data } = await supabase
+      .from('route_folders')
+      .insert({ user_id: user.id, name: name.trim(), position: 0 })
+      .select()
+      .single()
+    if (data) setRouteFolders((prev) => [...prev, data as RouteFolder])
+  }, [user])
+
+  const handleRenameRouteFolder = useCallback(async (id: string, name: string) => {
+    if (!name.trim()) return
+    setRouteFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: name.trim() } : f)))
+    await supabase.from('route_folders').update({ name: name.trim() }).eq('id', id)
+  }, [])
+
+  const handleDeleteRouteFolder = useCallback(async (id: string) => {
+    // FK is ON DELETE SET NULL, so routes inside fall back to ungrouped.
+    setRouteFolders((prev) => prev.filter((f) => f.id !== id))
+    setRoutes((prev) => prev.map((r) => (r.folder_id === id ? { ...r, folder_id: null } : r)))
+    await supabase.from('route_folders').delete().eq('id', id)
+  }, [])
+
+  const handleAssignRouteFolder = useCallback(async (routeId: string, folderId: string | null) => {
+    setRoutes((prev) => prev.map((r) => (r.id === routeId ? { ...r, folder_id: folderId } : r)))
+    await supabase.from('routes').update({ folder_id: folderId }).eq('id', routeId)
   }, [])
 
   const handleAddPinToRoute = async (pin: Pin) => {
@@ -948,6 +990,11 @@ export default function Home() {
         onSelectRoute={handleSelectRoute}
         onCreateRoute={handleCreateRoute}
         onDeleteRoute={handleDeleteRoute}
+        routeFolders={routeFolders}
+        onCreateRouteFolder={handleCreateRouteFolder}
+        onRenameRouteFolder={handleRenameRouteFolder}
+        onDeleteRouteFolder={handleDeleteRouteFolder}
+        onAssignRouteFolder={handleAssignRouteFolder}
         subscribedIds={subscribedIds}
         hiddenCommunityIds={hiddenCommunityIds}
         onToggleCommunityVisibility={handleToggleCommunityVisibility}

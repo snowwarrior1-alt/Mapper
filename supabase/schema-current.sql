@@ -297,6 +297,7 @@ CREATE TABLE IF NOT EXISTS public.routes (
   travel_mode  TEXT        NOT NULL DEFAULT 'foot-walking'
                  CHECK (travel_mode IN ('foot-walking','foot-hiking','cycling-regular','driving-car')),
   geometry     JSONB,      -- cached [[lat,lng],…] snapped path (OpenRouteService)
+  folder_id    UUID,       -- sidebar folder (route_folders); NULL = ungrouped (FK added below)
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   -- a public route must name the community it belongs to
   CONSTRAINT routes_public_has_community CHECK (NOT is_public OR community_id IS NOT NULL)
@@ -320,6 +321,19 @@ CREATE INDEX IF NOT EXISTS route_pins_route_idx ON route_pins (route_id);
 CREATE INDEX IF NOT EXISTS route_pins_order_idx ON route_pins (route_id, step, position);
 
 ALTER TABLE route_pins ENABLE ROW LEVEL SECURITY;
+
+-- Sidebar folders for organising routes (owner-only)
+CREATE TABLE IF NOT EXISTS public.route_folders (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 50),
+  position   INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE route_folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE routes DROP CONSTRAINT IF EXISTS routes_folder_fk;
+ALTER TABLE routes ADD CONSTRAINT routes_folder_fk
+  FOREIGN KEY (folder_id) REFERENCES route_folders(id) ON DELETE SET NULL;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -559,6 +573,9 @@ CREATE POLICY "collection_pins_insert_own" ON collection_pins FOR INSERT
   WITH CHECK (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
 CREATE POLICY "collection_pins_delete_own" ON collection_pins FOR DELETE
   USING (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
+
+-- route_folders (owner-only)
+CREATE POLICY "route_folders_owner" ON route_folders FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 -- routes (own rows are read/write; public routes are world-readable)
 CREATE POLICY "routes_select" ON routes FOR SELECT USING (auth.uid() = user_id OR is_public);

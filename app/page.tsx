@@ -69,6 +69,9 @@ export default function Home() {
   // While the builder is open, which community's pins the map shows (so map taps
   // add the pins you're browsing). null = show all pins ("From map" tab).
   const [builderCommunityId, setBuilderCommunityId] = useState<string | null>(null)
+  // A public route opened via /?route=<id> that the viewer doesn't own (so it's
+  // not in `routes`). Read-only. Cleared on close.
+  const [externalRoute, setExternalRoute] = useState<Route | null>(null)
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -363,6 +366,27 @@ export default function Home() {
       })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Deep link: /?route=<id> opens a route (read-only unless you own it). RLS lets
+  // anyone read a public route + its stops.
+  useEffect(() => {
+    const routeId = new URLSearchParams(window.location.search).get('route')
+    if (!routeId) return
+    supabase
+      .from('routes')
+      .select('*, profile:profiles(username, avatar_url)')
+      .eq('id', routeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setExternalRoute(data as Route) // owned routes also resolve via `routes`, harmless
+        setSelectedCommunity(null)
+        setActiveRouteId(routeId)
+        setBuilderCommunityId(null)
+        loadRouteStops(routeId)
+        window.history.replaceState({}, '', window.location.pathname)
+      })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Interaction handlers ──────────────────────────────────────────────────
 
   // Clear every map-filter dimension. Each filter handler calls this, then sets
@@ -479,6 +503,7 @@ export default function Home() {
     setActiveRouteId(null)
     setRouteStops([])
     setBuilderCommunityId(null)
+    setExternalRoute(null)
   }
 
   const handleCreateRoute = useCallback(async (name: string): Promise<Route | null> => {
@@ -496,6 +521,13 @@ export default function Home() {
   const handleRenameRoute = useCallback(async (id: string, name: string) => {
     await supabase.from('routes').update({ name: name.trim() }).eq('id', id)
     setRoutes((prev) => prev.map((r) => (r.id === id ? { ...r, name: name.trim() } : r)))
+  }, [])
+
+  // Publish (community set) or unpublish (null) a route. Owner-only via RLS.
+  const handlePublishRoute = useCallback(async (id: string, communityId: string | null) => {
+    const patch = { is_public: !!communityId, community_id: communityId }
+    setRoutes((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r))) // optimistic
+    await supabase.from('routes').update(patch).eq('id', id)
   }, [])
 
   const handleUpdateRouteColor = useCallback(async (id: string, color: string) => {
@@ -554,15 +586,16 @@ export default function Home() {
   }
 
   const handleMapClick = (lat: number, lng: number) => {
-    if (activeRouteId) return // builder is open — empty-map taps shouldn't drop a pin
+    if (activeRouteId) return // a route is open — empty-map taps shouldn't drop a pin
     if (selectedPin) { setSelectedPin(null); return }
     setPendingLatLng([lat, lng])
   }
 
   const handlePinClick = (pin: Pin) => {
-    // While the route builder is open, tapping a pin appends it to the route
-    // instead of opening its detail.
-    if (activeRouteId) { handleAddPinToRoute(pin); return }
+    // While editing a route, tapping a pin appends it as a stop instead of opening
+    // its detail. Routes in `routes` state are always owned (fetchRoutes filters by
+    // user_id); a read-only public viewer falls through to normal pin detail.
+    if (activeRouteId && routes.some((r) => r.id === activeRouteId)) { handleAddPinToRoute(pin); return }
     setPendingLatLng(null)
     setSelectedPin(pin)
   }
@@ -791,13 +824,20 @@ export default function Home() {
   const overlayOpen = panelOpen || modalOpen
 
   // Active route → ordered polyline path for the map
-  const activeRoute = activeRouteId ? routes.find((r) => r.id === activeRouteId) ?? null : null
+  const activeRoute = activeRouteId
+    ? routes.find((r) => r.id === activeRouteId) ?? (externalRoute?.id === activeRouteId ? externalRoute : null)
+    : null
+  // Only the owner can edit; a public route opened by someone else is view-only.
+  const routeCanEdit = !!activeRoute && !!user && activeRoute.user_id === user.id
   const routePath = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
 
-  // While building, the map shows the community being browsed (so taps add those
-  // pins); on the "From map" tab it shows everything. Otherwise the normal filter.
+  // While building (owner), the map shows the community being browsed (so taps add
+  // those pins); on "From map" it shows everything. A read-only viewer shows just
+  // the route's own stops. Otherwise the normal filter.
   const mapPins = activeRoute
-    ? (builderCommunityId ? pins.filter((p) => p.community_id === builderCommunityId) : pins)
+    ? routeCanEdit
+      ? (builderCommunityId ? pins.filter((p) => p.community_id === builderCommunityId) : pins)
+      : routeStops.map((s) => s.pin)
     : filteredPins
 
   return (
@@ -937,6 +977,8 @@ export default function Home() {
             stops={routeStops}
             communities={communities}
             pins={pins}
+            canEdit={routeCanEdit}
+            authorName={activeRoute.profile?.username ?? undefined}
             onSelectBuilderCommunity={setBuilderCommunityId}
             onAddPin={handleAddPinToRoute}
             onRemoveStop={handleRemoveRouteStop}
@@ -944,6 +986,7 @@ export default function Home() {
             onFlyToPin={(pin) => handleFlyTo(pin.lat, pin.lng, 16)}
             onRename={handleRenameRoute}
             onUpdateColor={handleUpdateRouteColor}
+            onPublish={handlePublishRoute}
             onDelete={handleDeleteRoute}
             onClose={handleCloseRoute}
           />

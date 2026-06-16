@@ -107,7 +107,10 @@ export interface Route {
   user_id: string
   name: string
   color: string
+  is_public: boolean
+  community_id: string | null   // the community a public route is published to
   created_at: string
+  profile?: Pick<Profile, 'username' | 'avatar_url'> | null // author, for public routes
 }
 
 export interface Vote {

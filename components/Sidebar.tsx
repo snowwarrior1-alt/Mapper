@@ -5,7 +5,7 @@ import {
   Bookmark, BookmarkCheck, Check, ChevronDown, ChevronRight,
   Compass, Folder, FolderPlus, LogOut, Lock, MapPin, Pencil, Plus,
   Search, Settings, Shield, Trash2, User2, ArrowUpRight, X, Newspaper, Route as RouteIcon,
-  Eye, EyeOff,
+  Eye, EyeOff, Globe,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
@@ -788,6 +788,7 @@ export default function Sidebar({
                     <RouteIcon className="h-3.5 w-3.5" style={{ color: r.color }} />
                   </span>
                   <span className="flex-1 truncate text-sm font-medium">{r.name}</span>
+                  {r.is_public && <Globe className="h-3.5 w-3.5 shrink-0 text-green-500" aria-label="Public" />}
                 </button>
               ))}
               {creatingRoute ? (

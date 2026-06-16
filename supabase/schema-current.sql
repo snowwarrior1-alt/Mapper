@@ -288,14 +288,19 @@ ALTER TABLE collection_pins ENABLE ROW LEVEL SECURITY;
 -- ── routes + route_pins (ordered trails drawn as a polyline) ──────────────────
 
 CREATE TABLE IF NOT EXISTS public.routes (
-  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  name       TEXT        NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 60),
-  color      TEXT        NOT NULL DEFAULT '#6366f1' CHECK (color ~ '^#[0-9a-fA-F]{3,8}$'),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name         TEXT        NOT NULL CHECK (char_length(trim(name)) BETWEEN 1 AND 60),
+  color        TEXT        NOT NULL DEFAULT '#6366f1' CHECK (color ~ '^#[0-9a-fA-F]{3,8}$'),
+  is_public    BOOLEAN     NOT NULL DEFAULT false,
+  community_id UUID        REFERENCES communities(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- a public route must name the community it belongs to
+  CONSTRAINT routes_public_has_community CHECK (NOT is_public OR community_id IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS routes_user_idx ON routes (user_id);
+CREATE INDEX IF NOT EXISTS routes_community_public_idx ON routes (community_id) WHERE is_public;
 
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 
@@ -550,15 +555,15 @@ CREATE POLICY "collection_pins_insert_own" ON collection_pins FOR INSERT
 CREATE POLICY "collection_pins_delete_own" ON collection_pins FOR DELETE
   USING (EXISTS (SELECT 1 FROM collections c WHERE c.id = collection_id AND c.user_id = auth.uid()));
 
--- routes (private; own rows only)
-CREATE POLICY "routes_select_own" ON routes FOR SELECT USING (auth.uid() = user_id);
+-- routes (own rows are read/write; public routes are world-readable)
+CREATE POLICY "routes_select" ON routes FOR SELECT USING (auth.uid() = user_id OR is_public);
 CREATE POLICY "routes_insert_own" ON routes FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "routes_update_own" ON routes FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "routes_delete_own" ON routes FOR DELETE USING (auth.uid() = user_id);
 
--- route_pins (ordered stops; only for routes you own)
-CREATE POLICY "route_pins_select_own" ON route_pins FOR SELECT
-  USING (EXISTS (SELECT 1 FROM routes r WHERE r.id = route_id AND r.user_id = auth.uid()));
+-- route_pins (ordered stops; readable for owned OR public routes, writable owner-only)
+CREATE POLICY "route_pins_select" ON route_pins FOR SELECT
+  USING (EXISTS (SELECT 1 FROM routes r WHERE r.id = route_id AND (r.user_id = auth.uid() OR r.is_public)));
 CREATE POLICY "route_pins_insert_own" ON route_pins FOR INSERT
   WITH CHECK (EXISTS (SELECT 1 FROM routes r WHERE r.id = route_id AND r.user_id = auth.uid()));
 CREATE POLICY "route_pins_update_own" ON route_pins FOR UPDATE

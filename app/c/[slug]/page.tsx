@@ -7,10 +7,10 @@ import type { User } from '@supabase/supabase-js'
 import {
   ArrowLeft, MapPin, Users, Bookmark, BookmarkCheck,
   Shield, Clock, Lock, Loader2, ThumbsUp, MessageSquare,
-  AlertCircle,
+  AlertCircle, Route as RouteIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Community, Pin, PIN_DURATION_LABELS, WHO_CAN_PIN_LABELS } from '@/lib/types'
+import { Community, Pin, Route, PIN_DURATION_LABELS, WHO_CAN_PIN_LABELS } from '@/lib/types'
 import { timeAgo, formatCount, voteColorClass, formatVoteCount } from '@/lib/utils'
 
 // ── Pin card ──────────────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ export default function CommunityPage() {
   const [user, setUser] = useState<User | null>(null)
   const [community, setCommunity] = useState<Community | null>(null)
   const [pins, setPins] = useState<(Pin & { comment_count?: number })[]>([])
+  const [routes, setRoutes] = useState<(Route & { route_pins?: { count: number }[] })[]>([])
   const [pinCount, setPinCount] = useState(0)
   const [subscriberCount, setSubscriberCount] = useState(0)
   const [isSubscribed, setIsSubscribed] = useState(false)
@@ -124,6 +125,15 @@ export default function CommunityPage() {
       .limit(50)
 
     if (pinData) setPins(pinData)
+
+    // 4. Public routes published to this community (RLS allows anon read)
+    const { data: routeData } = await supabase
+      .from('routes')
+      .select('*, profile:profiles(username, avatar_url), route_pins(count)')
+      .eq('community_id', comm.id)
+      .eq('is_public', true)
+      .order('created_at', { ascending: false })
+    if (routeData) setRoutes(routeData as (Route & { route_pins?: { count: number }[] })[])
 
     setLoading(false)
   }, [slug])
@@ -283,6 +293,44 @@ export default function CommunityPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Routes ──────────────────────────────────────────────────────── */}
+      {routes.length > 0 && (
+        <section className="mx-auto max-w-2xl px-4 pt-8">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gray-500">
+            <RouteIcon className="h-4 w-4" />
+            Routes
+            <span className="rounded-full bg-gray-800 px-2 py-0.5 text-gray-400">{routes.length}</span>
+          </h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {routes.map((r) => {
+              const stopCount = r.route_pins?.[0]?.count ?? 0
+              return (
+                <li key={r.id}>
+                  <Link
+                    href={`/?route=${r.id}`}
+                    className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900/60 p-3 transition-colors hover:border-gray-700 hover:bg-gray-900"
+                  >
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                      style={{ backgroundColor: r.color + '22', border: `2px solid ${r.color}` }}
+                    >
+                      <RouteIcon className="h-4 w-4" style={{ color: r.color }} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{r.name}</p>
+                      <p className="truncate text-xs text-gray-500">
+                        {stopCount} {stopCount === 1 ? 'stop' : 'stops'}
+                        {r.profile?.username && <> · by {r.profile.username}</>}
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* ── Pin feed ────────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-2xl px-4 py-8">

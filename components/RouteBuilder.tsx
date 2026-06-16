@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Route as RouteIcon, ArrowLeft, Trash2, Plus, Check, X,
-  ChevronUp, ChevronDown, MapPinned, Search, ListOrdered, Map as MapIcon,
+  ChevronUp, ChevronDown, MapPinned, Search, ListOrdered, Map as MapIcon, Globe,
 } from 'lucide-react'
 import { Pin, Route, Community } from '@/lib/types'
 import { COMMUNITY_COLORS } from '@/lib/constants'
@@ -15,6 +15,8 @@ interface RouteBuilderProps {
   stops: { pin: Pin; position: number }[]
   communities: Community[]
   pins: Pin[]                                   // all in-memory approved pins
+  canEdit: boolean                              // false = read-only public viewer
+  authorName?: string                           // shown in the read-only viewer
   onSelectBuilderCommunity: (id: string | null) => void  // drives which pins the map shows
   onAddPin: (pin: Pin) => void
   onRemoveStop: (pinId: string) => void
@@ -22,28 +24,30 @@ interface RouteBuilderProps {
   onFlyToPin: (pin: Pin) => void
   onRename: (id: string, name: string) => void
   onUpdateColor: (id: string, color: string) => void
+  onPublish: (id: string, communityId: string | null) => void
   onDelete: (id: string) => void
   onClose: () => void
 }
 
 export default function RouteBuilder({
-  route, stops, communities, pins,
+  route, stops, communities, pins, canEdit, authorName,
   onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStop, onFlyToPin,
-  onRename, onUpdateColor, onDelete, onClose,
+  onRename, onUpdateColor, onPublish, onDelete, onClose,
 }: RouteBuilderProps) {
-  const [tab, setTab] = useState<Tab>(stops.length === 0 ? 'community' : 'stops')
+  const [tab, setTab] = useState<Tab>(!canEdit || stops.length > 0 ? 'stops' : 'community')
   const defaultCommunityId = stops[0]?.pin.community_id ?? communities[0]?.id ?? null
   const [pickedCommunityId, setPickedCommunityId] = useState<string | null>(defaultCommunityId)
   const [search, setSearch] = useState('')
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState(route.name)
   const [colorOpen, setColorOpen] = useState(false)
+  const [publishOpen, setPublishOpen] = useState(false)
 
   // Keep the map's shown pins in sync with the active tab (so map taps add the
   // pins you're looking at). "From community" → that community; otherwise all.
   useEffect(() => {
-    onSelectBuilderCommunity(tab === 'community' ? pickedCommunityId : null)
-  }, [tab, pickedCommunityId, onSelectBuilderCommunity])
+    onSelectBuilderCommunity(canEdit && tab === 'community' ? pickedCommunityId : null)
+  }, [canEdit, tab, pickedCommunityId, onSelectBuilderCommunity])
 
   useEffect(() => { setNameDraft(route.name) }, [route.id, route.name])
 
@@ -70,7 +74,8 @@ export default function RouteBuilder({
     { id: 'community', label: 'From community', icon: <Plus className="h-3.5 w-3.5" /> },
     { id: 'map', label: 'From map', icon: <MapIcon className="h-3.5 w-3.5" /> },
   ]
-  const renderTabs = () => (
+  // Read-only viewer: only the Stops list, no add tabs.
+  const renderTabs = () => !canEdit ? null : (
     <div className="flex shrink-0 gap-1 border-b border-gray-800 p-2">
       {tabs.map((t) => (
         <button
@@ -206,7 +211,9 @@ export default function RouteBuilder({
   )
 
   const renderActivePane = () =>
-    tab === 'stops' ? renderStops() : tab === 'community' ? renderCommunityPicker() : renderMapHint()
+    !canEdit || tab === 'stops' ? renderStops() : tab === 'community' ? renderCommunityPicker() : renderMapHint()
+
+  const publishedCommunity = communities.find((c) => c.id === route.community_id) ?? null
 
   // ── Top bar (shared) ──────────────────────────────────────────────────────
   const topBar = (
@@ -219,15 +226,15 @@ export default function RouteBuilder({
         <ArrowLeft className="h-4 w-4" />
       </button>
       <button
-        onClick={() => setColorOpen((v) => !v)}
-        title="Route color"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        onClick={() => canEdit && setColorOpen((v) => !v)}
+        title={canEdit ? 'Route color' : undefined}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${canEdit ? '' : 'cursor-default'}`}
         style={{ backgroundColor: route.color + '22', border: `2px solid ${route.color}` }}
       >
         <RouteIcon className="h-4 w-4" style={{ color: route.color }} />
       </button>
       <div className="min-w-0 flex-1">
-        {editingName ? (
+        {canEdit && editingName ? (
           <input
             autoFocus
             value={nameDraft}
@@ -237,19 +244,34 @@ export default function RouteBuilder({
             maxLength={60}
             className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-sm font-bold text-white focus:border-indigo-500 focus:outline-none"
           />
-        ) : (
+        ) : canEdit ? (
           <button onClick={() => setEditingName(true)} className="block max-w-full truncate text-left text-sm font-bold text-white hover:text-indigo-300">
             {route.name}
           </button>
+        ) : (
+          <h2 className="truncate text-sm font-bold text-white">{route.name}</h2>
         )}
-        <p className="text-xs text-gray-500">{stops.length} {stops.length === 1 ? 'stop' : 'stops'}</p>
+        <p className="truncate text-xs text-gray-500">
+          {stops.length} {stops.length === 1 ? 'stop' : 'stops'}
+          {!canEdit && authorName && <> · by {authorName}</>}
+          {!canEdit && publishedCommunity && <> · {publishedCommunity.icon} {publishedCommunity.name}</>}
+        </p>
       </div>
-      <button onClick={() => onDelete(route.id)} title="Delete route"
-        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-600/10 hover:text-red-400">
-        <Trash2 className="h-4 w-4" />
-      </button>
 
-      {colorOpen && (
+      {canEdit && (
+        <button onClick={() => setPublishOpen((v) => !v)} title={route.is_public ? 'Published — edit' : 'Publish to a community'}
+          className={`rounded-lg p-1.5 transition-colors ${route.is_public ? 'text-green-400 hover:bg-green-600/10' : 'text-gray-500 hover:bg-gray-800 hover:text-white'}`}>
+          <Globe className="h-4 w-4" />
+        </button>
+      )}
+      {canEdit && (
+        <button onClick={() => onDelete(route.id)} title="Delete route"
+          className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-600/10 hover:text-red-400">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+
+      {canEdit && colorOpen && (
         <div className="absolute left-12 top-full z-10 mt-1 grid grid-cols-6 gap-1.5 rounded-xl border border-gray-700 bg-gray-900 p-2 shadow-2xl">
           {COMMUNITY_COLORS.map((hex) => (
             <button
@@ -261,6 +283,31 @@ export default function RouteBuilder({
               {route.color === hex && <Check className="h-3.5 w-3.5 text-white" />}
             </button>
           ))}
+        </div>
+      )}
+
+      {canEdit && publishOpen && (
+        <div className="absolute right-2 top-full z-10 mt-1 w-72 rounded-xl border border-gray-700 bg-gray-900 p-3 shadow-2xl">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-white">
+            <Globe className="h-4 w-4 text-green-400" /> Publish route
+          </p>
+          <p className="mb-3 text-xs text-gray-500">
+            Share this route on a community page. Anyone can view it; only you can edit it.
+          </p>
+          <label className="mb-1 block text-xs text-gray-400">Community</label>
+          <select
+            value={route.community_id ?? ''}
+            onChange={(e) => onPublish(route.id, e.target.value || null)}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="">Private (not published)</option>
+            {communities.map((c) => (
+              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-gray-600">
+            {route.is_public ? '✓ Public' : 'Currently private'}
+          </p>
         </div>
       )}
     </div>

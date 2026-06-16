@@ -5,8 +5,9 @@ import {
   Route as RouteIcon, ArrowLeft, Trash2, Plus, Check, X,
   ChevronUp, ChevronDown, MapPinned, Search, ListOrdered, Map as MapIcon, Globe,
 } from 'lucide-react'
-import { Pin, Route, Community } from '@/lib/types'
+import { Pin, Route, Community, TravelMode } from '@/lib/types'
 import { COMMUNITY_COLORS } from '@/lib/constants'
+import { TRAVEL_MODES } from '@/lib/routing'
 
 type Tab = 'stops' | 'community' | 'map'
 
@@ -24,6 +25,7 @@ interface RouteBuilderProps {
   onFlyToPin: (pin: Pin) => void
   onRename: (id: string, name: string) => void
   onUpdateColor: (id: string, color: string) => void
+  onUpdateMode: (id: string, mode: TravelMode) => void
   onPublish: (id: string, communityId: string | null) => void
   onDelete: (id: string) => void
   onClose: () => void
@@ -32,7 +34,7 @@ interface RouteBuilderProps {
 export default function RouteBuilder({
   route, stops, communities, pins, canEdit, authorName,
   onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStop, onFlyToPin,
-  onRename, onUpdateColor, onPublish, onDelete, onClose,
+  onRename, onUpdateColor, onUpdateMode, onPublish, onDelete, onClose,
 }: RouteBuilderProps) {
   const [tab, setTab] = useState<Tab>(!canEdit || stops.length > 0 ? 'stops' : 'community')
   const defaultCommunityId = stops[0]?.pin.community_id ?? communities[0]?.id ?? null
@@ -42,6 +44,8 @@ export default function RouteBuilder({
   const [nameDraft, setNameDraft] = useState(route.name)
   const [colorOpen, setColorOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [modeOpen, setModeOpen] = useState(false)
+  const activeMode = TRAVEL_MODES.find((m) => m.id === route.travel_mode) ?? TRAVEL_MODES[0]
 
   // Keep the map's shown pins in sync with the active tab (so map taps add the
   // pins you're looking at). "From community" → that community; otherwise all.
@@ -252,12 +256,18 @@ export default function RouteBuilder({
           <h2 className="truncate text-sm font-bold text-white">{route.name}</h2>
         )}
         <p className="truncate text-xs text-gray-500">
-          {stops.length} {stops.length === 1 ? 'stop' : 'stops'}
+          {activeMode.emoji} {activeMode.label} · {stops.length} {stops.length === 1 ? 'stop' : 'stops'}
           {!canEdit && authorName && <> · by {authorName}</>}
           {!canEdit && publishedCommunity && <> · {publishedCommunity.icon} {publishedCommunity.name}</>}
         </p>
       </div>
 
+      {canEdit && (
+        <button onClick={() => setModeOpen((v) => !v)} title={`Travel mode: ${activeMode.label}`}
+          className="flex h-8 items-center gap-1 rounded-lg px-2 text-sm text-gray-300 transition-colors hover:bg-gray-800">
+          <span className="text-base leading-none">{activeMode.emoji}</span>
+        </button>
+      )}
       {canEdit && (
         <button onClick={() => setPublishOpen((v) => !v)} title={route.is_public ? 'Published — edit' : 'Publish to a community'}
           className={`rounded-lg p-1.5 transition-colors ${route.is_public ? 'text-green-400 hover:bg-green-600/10' : 'text-gray-500 hover:bg-gray-800 hover:text-white'}`}>
@@ -269,6 +279,24 @@ export default function RouteBuilder({
           className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-600/10 hover:text-red-400">
           <Trash2 className="h-4 w-4" />
         </button>
+      )}
+
+      {canEdit && modeOpen && (
+        <div className="absolute right-2 top-full z-10 mt-1 w-44 rounded-xl border border-gray-700 bg-gray-900 p-1.5 shadow-2xl">
+          <p className="px-2 py-1 text-xs font-semibold text-gray-500">Follow…</p>
+          {TRAVEL_MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => { onUpdateMode(route.id, m.id); setModeOpen(false) }}
+              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+                route.travel_mode === m.id ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <span className="text-base leading-none">{m.emoji}</span> {m.label}
+              {route.travel_mode === m.id && <Check className="ml-auto h-3.5 w-3.5" />}
+            </button>
+          ))}
+        </div>
       )}
 
       {canEdit && colorOpen && (

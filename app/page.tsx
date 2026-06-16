@@ -5,7 +5,8 @@ import { Menu, Zap, LocateFixed, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
-import { Community, Pin, PendingInvite, CommunityGroup, Collection, Route } from '@/lib/types'
+import { Community, Pin, PendingInvite, CommunityGroup, Collection, Route, TravelMode } from '@/lib/types'
+import { fetchRouteGeometry } from '@/lib/routing'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
@@ -72,6 +73,8 @@ export default function Home() {
   // A public route opened via /?route=<id> that the viewer doesn't own (so it's
   // not in `routes`). Read-only. Cleared on close.
   const [externalRoute, setExternalRoute] = useState<Route | null>(null)
+  // Freshly computed snapped path for the open route (owner recompute this session).
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null)
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -387,6 +390,32 @@ export default function Home() {
       })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Recompute the snapped (street/trail-following) path when an OWNED route's stops
+  // or travel mode change. Debounced; persists to routes.geometry so viewers (incl.
+  // anonymous) render the path without re-hitting the routing API. Viewers don't
+  // recompute — they fall back to the stored geometry.
+  const ownedActive = routes.find((r) => r.id === activeRouteId)
+  const activeTravelMode = ownedActive?.travel_mode ?? null
+  useEffect(() => {
+    if (!activeRouteId || !ownedActive) return
+    const coords = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
+    if (coords.length < 2) { setRouteGeometry(null); return }
+    const mode = activeTravelMode as TravelMode
+    let cancelled = false
+    const ctrl = new AbortController()
+    const t = setTimeout(async () => {
+      const geo = await fetchRouteGeometry(coords, mode, ctrl.signal)
+      if (cancelled) return
+      setRouteGeometry(geo)
+      if (JSON.stringify(geo) !== JSON.stringify(ownedActive.geometry)) {
+        await supabase.from('routes').update({ geometry: geo }).eq('id', activeRouteId)
+        setRoutes((prev) => prev.map((r) => (r.id === activeRouteId ? { ...r, geometry: geo } : r)))
+      }
+    }, 600)
+    return () => { cancelled = true; ctrl.abort(); clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRouteId, routeStops, activeTravelMode])
+
   // ── Interaction handlers ──────────────────────────────────────────────────
 
   // Clear every map-filter dimension. Each filter handler calls this, then sets
@@ -504,7 +533,13 @@ export default function Home() {
     setRouteStops([])
     setBuilderCommunityId(null)
     setExternalRoute(null)
+    setRouteGeometry(null)
   }
+
+  const handleSetRouteMode = useCallback(async (id: string, mode: TravelMode) => {
+    setRoutes((prev) => prev.map((r) => (r.id === id ? { ...r, travel_mode: mode } : r))) // optimistic; recompute effect refires
+    await supabase.from('routes').update({ travel_mode: mode }).eq('id', id)
+  }, [])
 
   const handleCreateRoute = useCallback(async (name: string): Promise<Route | null> => {
     if (!user) return null
@@ -829,7 +864,10 @@ export default function Home() {
     : null
   // Only the owner can edit; a public route opened by someone else is view-only.
   const routeCanEdit = !!activeRoute && !!user && activeRoute.user_id === user.id
-  const routePath = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
+  // Prefer the snapped path (this session's recompute, else stored); fall back to
+  // straight lines between stops when no geometry is available yet.
+  const straightPath = routeStops.map((s) => [s.pin.lat, s.pin.lng] as [number, number])
+  const routePath = routeGeometry ?? activeRoute?.geometry ?? straightPath
 
   // While building (owner), the map shows the community being browsed (so taps add
   // those pins); on "From map" it shows everything. A read-only viewer shows just
@@ -986,6 +1024,7 @@ export default function Home() {
             onFlyToPin={(pin) => handleFlyTo(pin.lat, pin.lng, 16)}
             onRename={handleRenameRoute}
             onUpdateColor={handleUpdateRouteColor}
+            onUpdateMode={handleSetRouteMode}
             onPublish={handlePublishRoute}
             onDelete={handleDeleteRoute}
             onClose={handleCloseRoute}

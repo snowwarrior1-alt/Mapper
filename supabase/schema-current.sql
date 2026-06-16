@@ -294,6 +294,9 @@ CREATE TABLE IF NOT EXISTS public.routes (
   color        TEXT        NOT NULL DEFAULT '#6366f1' CHECK (color ~ '^#[0-9a-fA-F]{3,8}$'),
   is_public    BOOLEAN     NOT NULL DEFAULT false,
   community_id UUID        REFERENCES communities(id) ON DELETE SET NULL,
+  travel_mode  TEXT        NOT NULL DEFAULT 'foot-walking'
+                 CHECK (travel_mode IN ('foot-walking','foot-hiking','cycling-regular','driving-car')),
+  geometry     JSONB,      -- cached [[lat,lng],…] snapped path (OpenRouteService)
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   -- a public route must name the community it belongs to
   CONSTRAINT routes_public_has_community CHECK (NOT is_public OR community_id IS NOT NULL)

@@ -102,6 +102,8 @@ export interface Collection {
 }
 
 /** An ordered trail of pins, drawn as a polyline */
+export type TravelMode = 'foot-walking' | 'foot-hiking' | 'cycling-regular' | 'driving-car'
+
 export interface Route {
   id: string
   user_id: string
@@ -109,6 +111,8 @@ export interface Route {
   color: string
   is_public: boolean
   community_id: string | null   // the community a public route is published to
+  travel_mode: TravelMode       // ORS profile the snapped path follows
+  geometry: [number, number][] | null  // cached [lat,lng] snapped path; null = straight lines
   created_at: string
   profile?: Pick<Profile, 'username' | 'avatar_url'> | null // author, for public routes
 }

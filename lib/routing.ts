@@ -1,4 +1,5 @@
 import type { TravelMode } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 // Snapped-path routing via the /api/route proxy (OpenRouteService server-side).
 // Returns an ordered [lat,lng] polyline, or null on any failure so callers can
@@ -19,9 +20,16 @@ export async function fetchRouteGeometry(
   const hit = cache.get(key)
   if (hit) return hit
   try {
+    // Only signed-in route owners recompute geometry; send the JWT so the
+    // (auth-gated) proxy accepts the request.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
     const res = await fetch('/api/route', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ coordinates: coords, profile: mode }),
       signal,
     })

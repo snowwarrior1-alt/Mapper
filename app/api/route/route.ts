@@ -3,7 +3,9 @@
  *
  * Proxies an ordered list of stops to OpenRouteService Directions and returns a
  * road/trail-snapped polyline. The ORS API key lives server-side only
- * (ORS_API_KEY) so it never reaches the browser.
+ * (ORS_API_KEY) so it never reaches the browser. Requires a valid Supabase JWT
+ * (Bearer) — only signed-in route owners recompute geometry, so this isn't an
+ * open proxy that could drain the ORS quota.
  *
  * Body:  { coordinates: [[lat, lng], …], profile: TravelMode }   (>= 2 stops)
  * Reply: { geometry: [[lat, lng], …] }   on success
@@ -14,13 +16,29 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status })
 
 const PROFILES = new Set(['foot-walking', 'foot-hiking', 'cycling-regular', 'driving-car'])
 const ORS_KEY = process.env.ORS_API_KEY
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export async function POST(req: NextRequest) {
+  // Require a signed-in caller first — only route owners recompute geometry; gating
+  // this keeps the endpoint (and our ORS quota) from being an open proxy, and
+  // doesn't leak config status to anonymous callers.
+  const authHeader = req.headers.get('authorization') ?? ''
+  if (!authHeader.startsWith('Bearer ') || !SUPABASE_URL || !ANON_KEY) {
+    return json({ error: 'Unauthorized' }, 401)
+  }
+  const caller = createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { authorization: authHeader } },
+  })
+  const { data: { user }, error: authErr } = await caller.auth.getUser()
+  if (authErr || !user) return json({ error: 'Unauthorized' }, 401)
+
   if (!ORS_KEY) return json({ error: 'Routing not configured' }, 503)
 
   let body: { coordinates?: unknown; profile?: unknown }

@@ -80,7 +80,7 @@ export default function Home() {
   // Routes/trails — the open route, its ordered stops, and build mode
   const [routes, setRoutes] = useState<Route[]>([])
   const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
-  const [routeStops, setRouteStops] = useState<{ pin: Pin; step: number; position: number }[]>([])
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([])
   // While the builder is open, which community's pins the map shows (so map taps
   // add the pins you're browsing). null = show all pins ("From map" tab).
   const [builderCommunityId, setBuilderCommunityId] = useState<string | null>(null)

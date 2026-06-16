@@ -280,7 +280,7 @@ export default function RouteBuilder({
   // ── Top bar — anchored to the left column on desktop (w-96), full width on mobile ──
   const topBar = (
     <div
-      className="pointer-events-auto relative flex w-full shrink-0 items-center gap-2 border-b border-gray-800 bg-gray-900/95 px-3 py-2.5 backdrop-blur-sm md:w-96"
+      className="pointer-events-auto relative z-20 flex w-full shrink-0 items-center gap-2 border-b border-gray-800 bg-gray-900/95 px-3 py-2.5 backdrop-blur-sm md:w-96"
       style={{ boxShadow: `inset 0 -2px 0 ${route.color}` }}
     >
       <button onClick={onClose} title="Back to map"

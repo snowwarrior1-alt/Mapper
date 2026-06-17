@@ -399,26 +399,15 @@ export default function Home() {
       })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Deep link: /?route=<id> opens a route (read-only unless you own it). RLS lets
-  // anyone read a public route + its stops.
+  // Deep link: /?route=<id> opens a route (read-only unless you own it, via
+  // handleOpenRouteById). RLS lets anyone read a public route + its stops.
   useEffect(() => {
     const routeId = new URLSearchParams(window.location.search).get('route')
     if (!routeId) return
-    supabase
-      .from('routes')
-      .select('*')
-      .eq('id', routeId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!data) return
-        setExternalRoute(data as Route) // owned routes also resolve via `routes`, harmless
-        setSelectedCommunity(null)
-        setActiveRouteId(routeId)
-        setBuilderCommunityId(null)
-        loadRouteStops(routeId)
-        window.history.replaceState({}, '', window.location.pathname)
-      })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    handleOpenRouteById(routeId)
+    window.history.replaceState({}, '', window.location.pathname)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Recompute the snapped (street/trail-following) path when an OWNED route's stops
   // or travel mode change. Debounced; persists to routes.geometry so viewers (incl.

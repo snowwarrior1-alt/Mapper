@@ -465,6 +465,9 @@ export default function Home() {
   const handleSelectCommunity = (id: string | null) => {
     resetMapFilters()
     setSelectedCommunity(id)
+    // On mobile, close the sidebar drawer so the community panel it opened (which
+    // sits behind the drawer) is visible.
+    if (id) setShowMobileSidebar(false)
   }
 
   const handleShowSubscribed = () => {
@@ -558,6 +561,7 @@ export default function Home() {
     setActiveRouteId(id)
     setBuilderCommunityId(null)
     setRouteTargetStep(null)
+    setShowMobileSidebar(false)      // close the mobile drawer so the builder shows
     loadRouteStops(id)
   }
 

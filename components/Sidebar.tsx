@@ -142,6 +142,9 @@ export default function Sidebar({
   const [allOpen, setAllOpen] = useState(false)
   const [subsOpen, setSubsOpen] = useState(false)
   const [allRoutesOpen, setAllRoutesOpen] = useState(false)
+  const [otherOpen, setOtherOpen] = useState(false)
+  // Once the flat "discover" list gets long, tuck it into a collapsed "Other" folder.
+  const OTHER_FOLDER_THRESHOLD = 8
   const [groupPicker, setGroupPicker]         = useState<string | null>(null) // communityId
   const [pickerCreating, setPickerCreating]   = useState(false)
   const [pickerNewName, setPickerNewName]     = useState('')
@@ -846,7 +849,19 @@ export default function Sidebar({
           )}
 
           {/* ── Unsubscribed / all-other communities ── */}
-          {unsubscribedVisible.map((c) => renderRow(c, false))}
+          {/* Flat when short; tucked into a collapsed "Other" folder once crowded. */}
+          {unsubscribedVisible.length > OTHER_FOLDER_THRESHOLD ? (
+            renderAutoFolder(
+              otherOpen, () => setOtherOpen((v) => !v),
+              false, () => setOtherOpen((v) => !v),
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800"><Folder className="h-3.5 w-3.5 text-gray-400" /></span>,
+              'Other communities', unsubscribedVisible.length,
+              '', '',
+              unsubscribedVisible.map((c) => renderRow(c, true)),
+            )
+          ) : (
+            unsubscribedVisible.map((c) => renderRow(c, false))
+          )}
 
           <div className="my-2 border-t border-gray-800" />
 

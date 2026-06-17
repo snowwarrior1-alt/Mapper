@@ -144,7 +144,7 @@ export default function Sidebar({
   isAdmin = false,
 }: SidebarProps) {
   // ── Local UI state ──────────────────────────────────────────────────────
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [groupPicker, setGroupPicker]         = useState<string | null>(null) // communityId
   const [pickerCreating, setPickerCreating]   = useState(false)
   const [pickerNewName, setPickerNewName]     = useState('')
@@ -184,10 +184,10 @@ export default function Sidebar({
     }
   }
 
-  // Route folders — collapse, create, rename, and per-route "move to folder" menu
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  // Route folders — expansion (collapsed by default), create, rename, per-route move
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const toggleFolder = (id: string) =>
-    setCollapsedFolders((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setExpandedFolders((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const submitNewFolder = () => {
@@ -285,7 +285,7 @@ export default function Sidebar({
 
   // ── Group helpers ────────────────────────────────────────────────────────
   const toggleCollapse = (id: string) =>
-    setCollapsedGroups((prev) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
@@ -758,6 +758,101 @@ export default function Sidebar({
             </button>
           )}
 
+          {/* ── Group folders ── */}
+          {user && groups.map((group) => {
+            const collapsed  = !expandedGroups.has(group.id)
+            const comms      = groupedMap.get(group.id) ?? []
+            const isRenaming = renamingGroupId === group.id
+
+            return (
+              <div key={group.id} className="mb-1">
+                {/* Group header */}
+                <div
+                  className="group/grp mb-0.5 flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-gray-800/50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => toggleCollapse(group.id)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5"
+                  >
+                    {collapsed
+                      ? <ChevronRight className="h-3 w-3 shrink-0 text-gray-600" />
+                      : <ChevronDown className="h-3 w-3 shrink-0 text-gray-600" />}
+                    {isRenaming ? (
+                      <input
+                        // eslint-disable-next-line jsx-a11y/no-autofocus
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRename(group.id)
+                          if (e.key === 'Escape') setRenamingGroupId(null)
+                        }}
+                        onBlur={() => commitRename(group.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-transparent text-xs font-semibold uppercase tracking-wider text-gray-400 outline-none"
+                      />
+                    ) : (
+                      <span className="truncate text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        {group.name}
+                      </span>
+                    )}
+                  </button>
+
+                  <span className="shrink-0 text-[10px] text-gray-700">{comms.length}</span>
+
+                  {/* Rename / delete — shown on hover */}
+                  <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/grp:opacity-100">
+                    {!isRenaming && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRename(group) }}
+                        title="Rename folder"
+                        className="rounded p-0.5 text-gray-600 transition-colors hover:text-gray-300"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeleteGroup(group.id) }}
+                      title="Delete folder"
+                      className="rounded p-0.5 text-gray-600 transition-colors hover:text-red-400"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Communities inside this group */}
+                {!collapsed && comms.map((c) => renderRow(c, true))}
+
+                {/* Empty folder hint */}
+                {!collapsed && comms.length === 0 && (
+                  <p className="py-1 pl-8 text-[10px] italic text-gray-700">
+                    No communities yet
+                  </p>
+                )}
+              </div>
+            )
+          })}
+
+          {/* ── Ungrouped subscribed communities ── */}
+          {user && groups.length > 0 && ungroupedSubscribed.length > 0 && (
+            <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-gray-700">
+              Other subscriptions
+            </p>
+          )}
+          {ungroupedSubscribed.map((c) => renderRow(c, false))}
+
+          {/* Divider between subscribed and unsubscribed */}
+          {hasSubscribedContent && unsubscribedVisible.length > 0 && (
+            <div className="my-2 border-t border-gray-800" />
+          )}
+
+          {/* ── Unsubscribed / all-other communities ── */}
+          {unsubscribedVisible.map((c) => renderRow(c, false))}
+
+          <div className="my-2 border-t border-gray-800" />
+
           {/* ── Collections ── */}
           {user && (
             <div className="mb-1" onClick={(e) => e.stopPropagation()}>
@@ -849,15 +944,64 @@ export default function Sidebar({
           {/* ── Routes ── */}
           {user && (
             <div className="mb-1" onClick={(e) => e.stopPropagation()}>
-              {(routes.length > 0 || routeFolders.length > 0 || creatingRoute || creatingFolder) && (
-                <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">
-                  Routes
-                </p>
+              {/* Section header — compact icon buttons, matching Communities */}
+              <div className="mb-1 flex items-center justify-between px-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-600">Routes</p>
+                <div className="flex items-center gap-1">
+                  {routes.length > 0 && (
+                    <button
+                      onClick={() => { setCreatingFolder((v) => !v); setNewFolderName('') }}
+                      title="New route folder"
+                      className="flex h-5 w-5 items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-700 hover:text-white"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setCreatingRoute((v) => !v); setNewRouteName('') }}
+                    title="New route"
+                    className="flex h-5 w-5 items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-700 hover:text-white"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Inline create inputs */}
+              {creatingRoute && (
+                <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={newRouteName}
+                  onChange={(e) => setNewRouteName(e.target.value)}
+                  onBlur={submitNewRoute}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitNewRoute()
+                    if (e.key === 'Escape') { setCreatingRoute(false); setNewRouteName('') }
+                  }}
+                  placeholder="Route name…"
+                  className="mb-1 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
+              )}
+              {creatingFolder && (
+                <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onBlur={submitNewFolder}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitNewFolder()
+                    if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
+                  }}
+                  placeholder="Folder name…"
+                  className="mb-1 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
+                />
               )}
 
-              {/* Folders (collapsible) */}
+              {/* Folders (collapsed by default) */}
               {routeFolders.map((folder) => {
-                const collapsed = collapsedFolders.has(folder.id)
+                const collapsed = !expandedFolders.has(folder.id)
                 const inFolder = routes.filter((r) => r.folder_id === folder.id)
                 const isRenaming = renamingFolderId === folder.id
                 return (
@@ -911,156 +1055,12 @@ export default function Sidebar({
               )}
               {routes.filter((r) => !r.folder_id).map(renderRouteRow)}
 
-              {/* New route */}
-              {creatingRoute ? (
-                <input
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
-                  value={newRouteName}
-                  onChange={(e) => setNewRouteName(e.target.value)}
-                  onBlur={submitNewRoute}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') submitNewRoute()
-                    if (e.key === 'Escape') { setCreatingRoute(false); setNewRouteName('') }
-                  }}
-                  placeholder="Route name…"
-                  className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
-                />
-              ) : (
-                <button
-                  onClick={() => { setCreatingRoute(true); setNewRouteName('') }}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800">
-                    <RouteIcon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="flex-1 text-sm font-medium">New route</span>
-                </button>
-              )}
-
-              {/* New folder */}
-              {creatingFolder ? (
-                <input
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onBlur={submitNewFolder}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') submitNewFolder()
-                    if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
-                  }}
-                  placeholder="Folder name…"
-                  className="mb-0.5 w-full rounded-lg border border-indigo-500 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none"
-                />
-              ) : (
-                <button
-                  onClick={() => { setCreatingFolder(true); setNewFolderName('') }}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-gray-500 transition-colors hover:bg-gray-800 hover:text-gray-300"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800">
-                    <FolderPlus className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="flex-1 text-sm font-medium">New folder</span>
-                </button>
+              {/* Empty state */}
+              {routes.length === 0 && routeFolders.length === 0 && !creatingRoute && (
+                <p className="px-2 py-1 text-xs text-gray-600">No routes yet — tap + to start one.</p>
               )}
             </div>
           )}
-
-          <div className="my-2 border-t border-gray-800" />
-
-          {/* ── Group folders ── */}
-          {user && groups.map((group) => {
-            const collapsed  = collapsedGroups.has(group.id)
-            const comms      = groupedMap.get(group.id) ?? []
-            const isRenaming = renamingGroupId === group.id
-
-            return (
-              <div key={group.id} className="mb-1">
-                {/* Group header */}
-                <div
-                  className="group/grp mb-0.5 flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-gray-800/50"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => toggleCollapse(group.id)}
-                    className="flex min-w-0 flex-1 items-center gap-1.5"
-                  >
-                    {collapsed
-                      ? <ChevronRight className="h-3 w-3 shrink-0 text-gray-600" />
-                      : <ChevronDown className="h-3 w-3 shrink-0 text-gray-600" />}
-                    {isRenaming ? (
-                      <input
-                        // eslint-disable-next-line jsx-a11y/no-autofocus
-                        autoFocus
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitRename(group.id)
-                          if (e.key === 'Escape') setRenamingGroupId(null)
-                        }}
-                        onBlur={() => commitRename(group.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-transparent text-xs font-semibold uppercase tracking-wider text-gray-400 outline-none"
-                      />
-                    ) : (
-                      <span className="truncate text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        {group.name}
-                      </span>
-                    )}
-                  </button>
-
-                  <span className="shrink-0 text-[10px] text-gray-700">{comms.length}</span>
-
-                  {/* Rename / delete — shown on hover */}
-                  <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/grp:opacity-100">
-                    {!isRenaming && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startRename(group) }}
-                        title="Rename folder"
-                        className="rounded p-0.5 text-gray-600 transition-colors hover:text-gray-300"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onDeleteGroup(group.id) }}
-                      title="Delete folder"
-                      className="rounded p-0.5 text-gray-600 transition-colors hover:text-red-400"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Communities inside this group */}
-                {!collapsed && comms.map((c) => renderRow(c, true))}
-
-                {/* Empty folder hint */}
-                {!collapsed && comms.length === 0 && (
-                  <p className="py-1 pl-8 text-[10px] italic text-gray-700">
-                    No communities yet
-                  </p>
-                )}
-              </div>
-            )
-          })}
-
-          {/* ── Ungrouped subscribed communities ── */}
-          {user && groups.length > 0 && ungroupedSubscribed.length > 0 && (
-            <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-gray-700">
-              Other subscriptions
-            </p>
-          )}
-          {ungroupedSubscribed.map((c) => renderRow(c, false))}
-
-          {/* Divider between subscribed and unsubscribed */}
-          {hasSubscribedContent && unsubscribedVisible.length > 0 && (
-            <div className="my-2 border-t border-gray-800" />
-          )}
-
-          {/* ── Unsubscribed / all-other communities ── */}
-          {unsubscribedVisible.map((c) => renderRow(c, false))}
         </div>
         )}
 

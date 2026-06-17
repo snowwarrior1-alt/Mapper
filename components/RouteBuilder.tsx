@@ -41,7 +41,9 @@ export default function RouteBuilder({
 }: RouteBuilderProps) {
   const totalStops = steps.reduce((n, g) => n + g.pins.length, 0)
   const [tab, setTab] = useState<Tab>(!canEdit || totalStops > 0 ? 'stops' : 'community')
-  const defaultCommunityId = steps[0]?.pins[0]?.community_id ?? communities[0]?.id ?? null
+  // Default the picker to: the community this route is published to → the first
+  // stop's community → the first available community.
+  const defaultCommunityId = route.community_id ?? steps[0]?.pins[0]?.community_id ?? communities[0]?.id ?? null
   const [pickedCommunityId, setPickedCommunityId] = useState<string | null>(defaultCommunityId)
   const [search, setSearch] = useState('')
   const [editingName, setEditingName] = useState(false)
@@ -56,6 +58,13 @@ export default function RouteBuilder({
   }, [canEdit, tab, pickedCommunityId, onSelectBuilderCommunity])
 
   useEffect(() => { setNameDraft(route.name) }, [route.id, route.name])
+
+  // When a community-published route is opened, default the "From community"
+  // picker to that community (it's where all its stops live).
+  useEffect(() => {
+    if (route.community_id) setPickedCommunityId(route.community_id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.id, route.community_id])
 
   const addedIds = useMemo(() => new Set(steps.flatMap((g) => g.pins.map((p) => p.id))), [steps])
 

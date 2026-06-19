@@ -1069,9 +1069,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Map style switcher — bottom-left of map; hidden when any overlay is open */}
-        {!overlayOpen && (
-          <div className="absolute left-4 bottom-20 z-[1100] md:bottom-8">
+        {/* Map style switcher — bottom-left of map. Hidden under blocking modals;
+            with just a community panel open it stays on desktop (it's bottom-left,
+            clear of the right-hand panel) but hides on mobile (the sheet covers it). */}
+        {!modalOpen && (
+          <div className={`absolute left-4 bottom-20 z-[1100] md:bottom-8 ${panelOpen ? 'hidden md:block' : ''}`}>
             <MapStyleSwitcher value={mapStyle} onChange={handleMapStyleChange} />
           </div>
         )}

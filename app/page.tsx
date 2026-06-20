@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { ADMIN_USER_ID } from '@/lib/constants'
 import { Community, Pin, PendingInvite, CommunityGroup, Route, RouteFolder, TravelMode } from '@/lib/types'
 import { fetchRouteGeometry } from '@/lib/routing'
+import { buildRouteLegs, stepsToLegSteps, normalizeSolidSegments } from '@/lib/route-legs'
 import type { FlyToTarget } from '@/components/MapInner'
 import Sidebar from '@/components/Sidebar'
 import MapWrapper from '@/components/MapWrapper'
@@ -25,8 +26,11 @@ import QuickAddSheet from '@/components/QuickAddSheet'
 import type { MapStyle } from '@/components/MapInner'
 
 // Group flat route stops into ordered steps; pins sharing a step are alternatives.
-type RouteStop = { pin: Pin; step: number; position: number }
-function groupRouteSteps(stops: RouteStop[]): { step: number; pins: Pin[] }[] {
+// `equalOptions` (per step) marks the step's options as equal — the incoming main
+// leg is dashed too, so the previous stop fans out to all of them as branches.
+type RouteStop = { pin: Pin; step: number; position: number; equalOptions: boolean }
+type RouteStepGroup = { step: number; pins: Pin[]; equalOptions: boolean }
+function groupRouteSteps(stops: RouteStop[]): RouteStepGroup[] {
   const byStep = new Map<number, RouteStop[]>()
   for (const s of stops) {
     const arr = byStep.get(s.step) ?? []
@@ -35,7 +39,11 @@ function groupRouteSteps(stops: RouteStop[]): { step: number; pins: Pin[] }[] {
   }
   return [...byStep.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([step, rows]) => ({ step, pins: rows.sort((a, b) => a.position - b.position).map((r) => r.pin) }))
+    .map(([step, rows]) => ({
+      step,
+      pins: rows.sort((a, b) => a.position - b.position).map((r) => r.pin),
+      equalOptions: rows.some((r) => r.equalOptions),
+    }))
 }
 
 export default function Home() {
@@ -90,7 +98,10 @@ export default function Home() {
   // not in `routes`). Read-only. Cleared on close.
   const [externalRoute, setExternalRoute] = useState<Route | null>(null)
   // Freshly computed snapped path for the open route (owner recompute this session).
-  const [routeGeometry, setRouteGeometry] = useState<[number, number][] | null>(null)
+  // Snapped SOLID path as segments (this session's recompute); null = use stored / straight.
+  const [routeGeometry, setRouteGeometry] = useState<[number, number][][] | null>(null)
+  // Snapped DASHED legs (alternative spurs + equal-step main legs) for this session.
+  const [branchGeometry, setBranchGeometry] = useState<[number, number][][] | null>(null)
   // Current user's profile username (for the bottom-nav Profile link)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   // Which list the sidebar shows — lifted here so the bottom nav can switch it
@@ -405,19 +416,34 @@ export default function Home() {
   const activeTravelMode = ownedActive?.travel_mode ?? null
   useEffect(() => {
     if (!activeRouteId || !ownedActive) return
-    // The snapped path follows the spine: the first pin of each step.
-    const coords = groupRouteSteps(routeStops).map((g) => [g.pins[0].lat, g.pins[0].lng] as [number, number])
-    if (coords.length < 2) { setRouteGeometry(null); return }
+    // Split the route into solid runs (the main path) + dashed legs (alternative
+    // spurs and equal-step main legs). Each gets snapped independently so the
+    // dashed branches follow streets/trails like the spine does.
+    const { solidRuns, dashedLegs } = buildRouteLegs(stepsToLegSteps(groupRouteSteps(routeStops)))
+    if (solidRuns.length === 0 && dashedLegs.length === 0) {
+      setRouteGeometry(null); setBranchGeometry(null); return
+    }
     const mode = activeTravelMode as TravelMode
     let cancelled = false
     const ctrl = new AbortController()
     const t = setTimeout(async () => {
-      const geo = await fetchRouteGeometry(coords, mode, ctrl.signal)
+      // Snap each run/leg; fall back to its straight coords if ORS is unavailable.
+      const solid = await Promise.all(
+        solidRuns.map(async (run) => (await fetchRouteGeometry(run, mode, ctrl.signal)) ?? run),
+      )
+      const dashed = await Promise.all(
+        dashedLegs.map(async (leg) =>
+          (await fetchRouteGeometry([leg.from, leg.to], mode, ctrl.signal)) ?? [leg.from, leg.to]),
+      )
       if (cancelled) return
-      setRouteGeometry(geo)
-      if (JSON.stringify(geo) !== JSON.stringify(ownedActive.geometry)) {
-        await supabase.from('routes').update({ geometry: geo }).eq('id', activeRouteId)
-        setRoutes((prev) => prev.map((r) => (r.id === activeRouteId ? { ...r, geometry: geo } : r)))
+      setRouteGeometry(solid)
+      setBranchGeometry(dashed)
+      if (
+        JSON.stringify(solid) !== JSON.stringify(ownedActive.geometry) ||
+        JSON.stringify(dashed) !== JSON.stringify(ownedActive.branch_geometry)
+      ) {
+        await supabase.from('routes').update({ geometry: solid, branch_geometry: dashed }).eq('id', activeRouteId)
+        setRoutes((prev) => prev.map((r) => (r.id === activeRouteId ? { ...r, geometry: solid, branch_geometry: dashed } : r)))
       }
     }, 600)
     return () => { cancelled = true; ctrl.abort(); clearTimeout(t) }
@@ -504,17 +530,17 @@ export default function Home() {
   const loadRouteStops = useCallback(async (routeId: string) => {
     const { data } = await supabase
       .from('route_pins')
-      .select('step, position, pin:pins(*, community:communities(*), profile:profiles(username, avatar_url))')
+      .select('step, position, equal_options, pin:pins(*, community:communities(*), profile:profiles(username, avatar_url))')
       .eq('route_id', routeId)
       .order('step')
       .order('position')
     const stops = (data ?? [])
       .map((r) => {
-        const row = r as { step: number; position: number; pin: Pin | Pin[] }
+        const row = r as { step: number; position: number; equal_options: boolean; pin: Pin | Pin[] }
         const pin = Array.isArray(row.pin) ? row.pin[0] : row.pin
-        return pin ? { pin, step: row.step, position: row.position } : null
+        return pin ? { pin, step: row.step, position: row.position, equalOptions: !!row.equal_options } : null
       })
-      .filter((s): s is { pin: Pin; step: number; position: number } => !!s)
+      .filter((s): s is RouteStop => !!s)
     setRouteStops(stops)
   }, [])
 
@@ -552,6 +578,7 @@ export default function Home() {
     setRouteTargetStep(null)
     setExternalRoute(null)
     setRouteGeometry(null)
+    setBranchGeometry(null)
   }
 
   const handleSetRouteMode = useCallback(async (id: string, mode: TravelMode) => {
@@ -631,19 +658,21 @@ export default function Home() {
   const handleAddPinToRoute = async (pin: Pin) => {
     if (!activeRouteId) return
     if (routeStops.some((s) => s.pin.id === pin.id)) return // a pin appears at most once
-    let step: number, position: number
+    let step: number, position: number, equalOptions: boolean
     if (routeTargetStep != null) {
-      // Adding an alternative ("or") to an existing step.
+      // Adding an alternative ("or") to an existing step — inherit its equal flag.
       step = routeTargetStep
       const inStep = routeStops.filter((s) => s.step === step)
       position = inStep.length ? Math.max(...inStep.map((s) => s.position)) + 1 : 0
+      equalOptions = inStep.some((s) => s.equalOptions)
     } else {
       // New step appended after the last one.
       step = routeStops.length ? Math.max(...routeStops.map((s) => s.step)) + 1 : 0
       position = 0
+      equalOptions = false
     }
-    setRouteStops((prev) => [...prev, { pin, step, position }])
-    await supabase.from('route_pins').insert({ route_id: activeRouteId, pin_id: pin.id, step, position })
+    setRouteStops((prev) => [...prev, { pin, step, position, equalOptions }])
+    await supabase.from('route_pins').insert({ route_id: activeRouteId, pin_id: pin.id, step, position, equal_options: equalOptions })
   }
 
   const handleRemoveRouteStop = async (pinId: string) => {
@@ -667,6 +696,20 @@ export default function Home() {
       supabase.from('route_pins').update({ step: other }).eq('route_id', activeRouteId).in('pin_id', routeStops.filter((s) => s.step === step).map((s) => s.pin.id)),
       supabase.from('route_pins').update({ step }).eq('route_id', activeRouteId).in('pin_id', routeStops.filter((s) => s.step === other).map((s) => s.pin.id)),
     ])
+  }
+
+  // Toggle a step's "equal options" flag (all its options drawn as equal dashed
+  // branches off the previous stop, vs. one solid default + dashed fallbacks).
+  // Persisted on every row of the step so grouping stays consistent.
+  const handleToggleEqualOptions = async (step: number) => {
+    if (!activeRouteId) return
+    const next = !routeStops.some((s) => s.step === step && s.equalOptions)
+    setRouteStops((prev) => prev.map((s) => (s.step === step ? { ...s, equalOptions: next } : s)))
+    await supabase
+      .from('route_pins')
+      .update({ equal_options: next })
+      .eq('route_id', activeRouteId)
+      .in('pin_id', routeStops.filter((s) => s.step === step).map((s) => s.pin.id))
   }
 
   const toggleTagFilter = (tagId: string) => {
@@ -922,23 +965,18 @@ export default function Home() {
     : null
   // Only the owner can edit; a public route opened by someone else is view-only.
   const routeCanEdit = !!activeRoute && !!user && activeRoute.user_id === user.id
-  // Steps drive both the spine (main path) and the dashed "or" spurs to alternatives.
+  // Steps drive both the solid main path and the dashed "or" spurs to alternatives.
   const routeStepGroups = groupRouteSteps(routeStops)
-  const spinePins = routeStepGroups.map((g) => g.pins[0])
-  const straightPath = spinePins.map((p) => [p.lat, p.lng] as [number, number])
-  // Prefer the snapped path (this session's recompute, else stored); fall back to
-  // straight lines along the spine when no geometry is available yet.
-  const routePath = routeGeometry ?? activeRoute?.geometry ?? straightPath
-  // Dashed spurs: from the previous step's spine pin to each alternative pin.
-  const routeBranchLegs: [number, number][][] = []
-  routeStepGroups.forEach((g, i) => {
-    if (i > 0 && g.pins.length > 1) {
-      const from = spinePins[i - 1]
-      for (let k = 1; k < g.pins.length; k++) {
-        routeBranchLegs.push([[from.lat, from.lng], [g.pins[k].lat, g.pins[k].lng]])
-      }
-    }
-  })
+  // Derive the straight-line legs (solid runs + dashed spurs) from the current
+  // stops — the fallback when no snapped geometry is available yet.
+  const { solidRuns: straightSolid, dashedLegs: straightDashed } =
+    buildRouteLegs(stepsToLegSteps(routeStepGroups))
+  // Prefer the snapped geometry (this session's recompute, else stored); fall back
+  // to straight lines. Stored geometry is normalised (legacy = one flat polyline).
+  const routeSolidSegments: [number, number][][] =
+    routeGeometry ?? normalizeSolidSegments(activeRoute?.geometry) ?? straightSolid
+  const routeBranchLegs: [number, number][][] =
+    branchGeometry ?? activeRoute?.branch_geometry ?? straightDashed.map((l) => [l.from, l.to])
 
   // While a route is open, ALWAYS show its stop pins as markers (so the line never
   // points at invisible pins) — unioned with whatever else is browsable: the
@@ -1087,7 +1125,7 @@ export default function Home() {
           onCenterChange={handleCenterChange}
           followedUserIds={followedUserIds}
           mapStyle={mapStyle}
-          routePath={routePath}
+          routeSolidSegments={routeSolidSegments}
           routeColor={activeRoute?.color}
           routeBranchLegs={routeBranchLegs}
         />
@@ -1106,6 +1144,7 @@ export default function Home() {
             onAddPin={handleAddPinToRoute}
             onRemoveStop={handleRemoveRouteStop}
             onMoveStep={handleMoveRouteStep}
+            onToggleEqualOptions={handleToggleEqualOptions}
             onFlyToPin={(pin) => handleFlyTo(pin.lat, pin.lng, 16)}
             onRename={handleRenameRoute}
             onUpdateColor={handleUpdateRouteColor}

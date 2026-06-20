@@ -296,7 +296,8 @@ CREATE TABLE IF NOT EXISTS public.routes (
   community_id UUID        REFERENCES communities(id) ON DELETE SET NULL,
   travel_mode  TEXT        NOT NULL DEFAULT 'foot-walking'
                  CHECK (travel_mode IN ('foot-walking','foot-hiking','cycling-regular','driving-car')),
-  geometry     JSONB,      -- cached [[lat,lng],…] snapped path (OpenRouteService)
+  geometry     JSONB,      -- cached snapped SOLID path: array of [[lat,lng],…] segments (legacy = one flat polyline)
+  branch_geometry JSONB,   -- cached snapped DASHED legs (alternative spurs + equal-step main legs)
   folder_id    UUID,       -- sidebar folder (route_folders); NULL = ungrouped (FK added below)
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
   -- is_public + community_id set → community route; is_public + NULL → public link route
@@ -312,6 +313,7 @@ CREATE TABLE IF NOT EXISTS public.route_pins (
   pin_id     UUID        NOT NULL REFERENCES pins(id)   ON DELETE CASCADE,
   step       INTEGER     NOT NULL DEFAULT 0,  -- pins sharing a step are alternatives ("or")
   position   INTEGER     NOT NULL DEFAULT 0,  -- orders alternatives within a step
+  equal_options BOOLEAN  NOT NULL DEFAULT false, -- true = incoming main leg dashed (all step options equal)
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (route_id, pin_id)
 );

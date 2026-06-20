@@ -1,7 +1,7 @@
 'use client'
 
 import 'leaflet/dist/leaflet.css'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, Fragment } from 'react'
 import { MapContainer, TileLayer, ZoomControl, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import { Community, Pin } from '@/lib/types'
 import PinClusterLayer from './PinClusterLayer'
@@ -100,10 +100,11 @@ interface MapInnerProps {
   onCenterChange?: (lat: number, lng: number) => void
   followedUserIds?: Set<string>
   mapStyle?: MapStyle
-  /** Ordered [lat,lng] points of the active route, drawn as a polyline */
-  routePath?: [number, number][]
+  /** Snapped SOLID path of the active route, as one or more polyline segments
+   *  (it breaks at "equal option" steps). */
+  routeSolidSegments?: [number, number][][]
   routeColor?: string
-  /** Optional "or" spurs — each a 2-point segment to an alternative stop (dashed) */
+  /** Optional "or" spurs — each a (snapped) polyline to an alternative stop (dashed) */
   routeBranchLegs?: [number, number][][]
 }
 
@@ -118,10 +119,15 @@ export default function MapInner({
   onCenterChange,
   followedUserIds,
   mapStyle = 'light',
-  routePath,
+  routeSolidSegments,
   routeColor = '#6366f1',
   routeBranchLegs,
 }: MapInnerProps) {
+  // All route points (solid + dashed) — used to auto-fit the map to the route.
+  const routeBoundsPoints = useMemo<[number, number][]>(
+    () => [...(routeSolidSegments ?? []).flat(), ...(routeBranchLegs ?? []).flat()],
+    [routeSolidSegments, routeBranchLegs],
+  )
   const tiles = TILE_PRESETS[mapStyle] ?? TILE_PRESETS.light
   const communityById = useMemo(
     () => Object.fromEntries(communities.map((c) => [c.id, c])),
@@ -155,14 +161,15 @@ export default function MapInner({
         <Polyline key={i} positions={leg} pathOptions={{ color: routeColor, weight: 3, opacity: 0.45, dashArray: '4 6', lineCap: 'round' }} />
       ))}
 
-      {/* Active route polyline + auto-fit */}
-      {routePath && routePath.length >= 2 && (
-        <>
-          <Polyline positions={routePath} pathOptions={{ color: routeColor, weight: 4, opacity: 0.85, dashArray: '1 8', lineCap: 'round' }} />
-          <Polyline positions={routePath} pathOptions={{ color: routeColor, weight: 4, opacity: 0.5 }} />
-          <RouteBoundsController path={routePath} />
-        </>
-      )}
+      {/* Active route — each solid segment gets the same double-stroke treatment */}
+      {routeSolidSegments?.map((seg, i) => seg.length >= 2 && (
+        <Fragment key={i}>
+          <Polyline positions={seg} pathOptions={{ color: routeColor, weight: 4, opacity: 0.85, dashArray: '1 8', lineCap: 'round' }} />
+          <Polyline positions={seg} pathOptions={{ color: routeColor, weight: 4, opacity: 0.5 }} />
+        </Fragment>
+      ))}
+      {/* Auto-fit to the whole route (solid + dashed) */}
+      {routeBoundsPoints.length >= 2 && <RouteBoundsController path={routeBoundsPoints} />}
 
       {/* Cluster layer — manages its own Leaflet layer imperatively */}
       <PinClusterLayer

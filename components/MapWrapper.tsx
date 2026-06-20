@@ -26,7 +26,7 @@ interface MapWrapperProps {
   onCenterChange?: (lat: number, lng: number) => void
   followedUserIds?: Set<string>
   mapStyle?: MapStyle
-  routePath?: [number, number][]
+  routeSolidSegments?: [number, number][][]
   routeColor?: string
   routeBranchLegs?: [number, number][][]
 }

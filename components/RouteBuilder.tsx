@@ -14,7 +14,7 @@ type Tab = 'stops' | 'community' | 'map'
 
 interface RouteBuilderProps {
   route: Route
-  steps: { step: number; pins: Pin[] }[]        // ordered steps; >1 pin = alternatives
+  steps: { step: number; pins: Pin[]; equalOptions: boolean }[]  // ordered steps; >1 pin = alternatives
   communities: Community[]
   pins: Pin[]                                   // all in-memory approved pins
   canEdit: boolean                              // false = read-only public viewer
@@ -25,6 +25,7 @@ interface RouteBuilderProps {
   onAddPin: (pin: Pin) => void
   onRemoveStop: (pinId: string) => void
   onMoveStep: (step: number, dir: -1 | 1) => void
+  onToggleEqualOptions: (step: number) => void   // dash all of a step's options equally
   onFlyToPin: (pin: Pin) => void
   onRename: (id: string, name: string) => void
   onUpdateColor: (id: string, color: string) => void
@@ -36,7 +37,7 @@ interface RouteBuilderProps {
 
 export default function RouteBuilder({
   route, steps, communities, pins, canEdit, authorName, targetStep, onSetTargetStep,
-  onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStep, onFlyToPin,
+  onSelectBuilderCommunity, onAddPin, onRemoveStop, onMoveStep, onToggleEqualOptions, onFlyToPin,
   onRename, onUpdateColor, onUpdateMode, onPublish, onDelete, onClose,
 }: RouteBuilderProps) {
   const totalStops = steps.reduce((n, g) => n + g.pins.length, 0)
@@ -170,6 +171,22 @@ export default function RouteBuilder({
                   <button onClick={() => startAddAlternative(g.step)}
                     className="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-400 transition-colors hover:text-indigo-300">
                     <Plus className="h-3 w-3" /> Add alternative
+                  </button>
+                )}
+                {/* Equal-options toggle — only meaningful for an alternatives step
+                    that has an incoming leg (not the very first step). */}
+                {canEdit && g.pins.length > 1 && i > 0 && (
+                  <button
+                    onClick={() => onToggleEqualOptions(g.step)}
+                    title="Draw all of this step's options as equal dashed branches (no solid default), instead of one main stop + dashed fallbacks."
+                    className="mt-1.5 flex items-start gap-1.5 text-left text-[11px] font-medium text-gray-400 transition-colors hover:text-gray-200"
+                  >
+                    <span className={`mt-px flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                      g.equalOptions ? 'border-indigo-400 bg-indigo-500' : 'border-gray-600'
+                    }`}>
+                      {g.equalOptions && <Check className="h-2.5 w-2.5 text-white" />}
+                    </span>
+                    <span>Equal options <span className="text-gray-600">— dash all, no default</span></span>
                   </button>
                 )}
               </div>

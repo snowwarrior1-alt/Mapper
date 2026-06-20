@@ -112,7 +112,13 @@ export interface Route {
   is_public: boolean
   community_id: string | null   // the community a public route is published to
   travel_mode: TravelMode       // ORS profile the snapped path follows
-  geometry: [number, number][] | null  // cached [lat,lng] snapped path; null = straight lines
+  // Cached snapped SOLID path. Current format: array of segments (one per run of
+  // consecutive non-equal stops); legacy rows hold a single flat polyline. null =
+  // straight lines. Normalise via lib/route-legs normalizeSolidSegments().
+  geometry: [number, number][][] | [number, number][] | null
+  // Cached snapped DASHED legs (alternative spurs + equal-step main legs), each a
+  // polyline. null = fall back to straight branch legs.
+  branch_geometry: [number, number][][] | null
   folder_id: string | null      // sidebar folder; null = ungrouped
   created_at: string
   profile?: Pick<Profile, 'username' | 'avatar_url'> | null // author, for public routes

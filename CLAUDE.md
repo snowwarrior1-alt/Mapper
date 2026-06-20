@@ -5,6 +5,9 @@
 ## What this is
 A crowd-sourced mapping platform where users drop geo-tagged pins into thematic communities (like "Birds", "Street Art", "Free WiFi"). Think Reddit meets Google Maps. Built with Next.js 16 + Supabase.
 
+## Local workspace
+This repo lives at **`C:\Users\snoww\Mapper+Tracker\mapcrowd\`** — a gitignored subfolder of the user's `Mapper+Tracker` workspace (renamed from `Map` in June 2026), which is itself the `personal-site` portfolio repo. The sibling **Tracker** app (`../tracker/`, github `snowwarrior1-alt/Tracker`, live `dailytally.vercel.app`) is a separate repo in the same workspace. MapCrowd and Tracker **share this one Supabase project** (named "Mapper+Tracker", ref `tmycdgnofvmbyrmpqohw`) to stay under the free-tier 2-project cap; Tracker owns its own `trackers`/`entries`/`day_notes` tables with per-user RLS and never touches MapCrowd's data.
+
 ## Tech stack
 - **Framework**: Next.js 16.2.6 (App Router, Turbopack)
 - **Database + Auth**: Supabase (PostgreSQL, RLS, Realtime, Storage)
@@ -238,7 +241,7 @@ Key helper functions (SECURITY DEFINER):
 - **GitHub**: https://github.com/snowwarrior1-alt/Mapper
 - **Hosting**: Vercel (connected to GitHub repo, auto-deploys on push to `main`)
 - **Live URL**: https://mapcrowd.vercel.app/ (legacy alias `mapper-gamma.vercel.app` still resolves)
-- **Database**: Supabase project `tmycdgnofvmbyrmpqohw` (AWS us-west-2)
+- **Database**: Supabase project named **"Mapper+Tracker"** (`tmycdgnofvmbyrmpqohw`, AWS us-west-2) — shared with the Tracker app (separate tables; see Local workspace)
 
 ### Vercel env vars required
 ```
